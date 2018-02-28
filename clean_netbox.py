@@ -21,29 +21,28 @@ api_url_base = conf.NETBOX_URL
 headers = {'Content-Type': 'application/json',
            'Authorization': 'Token {0}'.format(api_token)}
 
+def api_request(method, url, headers):
+    logger.debug(method + " - " + url)
+    
+    request = requests.Request(method, url, headers=headers)
+    response = s.send(request.prepare(), verify=False)
+    
+    logger.debug(str(response.status_code) + " - " + response.reason)
+    
+    return response
+
 def delete_sites():
     logger.info('Deleting Sites')
     # Get all sites
     api_url = '{0}/api/dcim/sites'.format(api_url_base)
 
-    method = 'GET'
-    request = requests.Request(method, api_url, headers=headers)
-    response = s.send(request.prepare(), verify=False)
-    
-    logger.info(method + " - " + api_url)
-    logger.debug(str(response.status_code) + " - " + response.reason)
-
+    response = api_request('GET', api_url, headers)
     sites = json.loads(response.content.decode('utf-8'))
 
     # Delete every site you got
     for site in sites['results']:
         url = '{0}/{1}'.format(api_url, site['id'])
-        method = 'DELETE'
-        request = requests.Request(method, url, headers=headers)
-        response = s.send(request.prepare(), verify=False)
-
-        logger.info(method + " - " + url)
-        logger.debug(str(response.status_code) + " - " + response.reason)
+        response = api_request('DELETE', url, headers)
 
     return
 
