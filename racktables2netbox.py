@@ -59,13 +59,14 @@ class REST(object):
 
     def uploader(self, data, url):
         method = 'POST'
+        
+        logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
+
         request = requests.Request(method, url, data = data)
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
 
-        logger.info(str(data))
-        logger.info('Status code: {!s}'.format(r.status_code))
-        logger.info(str(r.text))
+        logger.debug("HTTP Response: {!s} - {} - {}".format(r.status_code, r.reason, r.text))
 
         try:
             return r.json()
@@ -75,105 +76,93 @@ class REST(object):
 
     def fetcher(self, url):
         method = 'GET'
+
+        logger.debug("HTTP Request: {} - {}".format(method, url))
+
         request = requests.Request(method, url)
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
 
-        logger.info('Status code: {!s}'.format(r.status_code))
-        logger.info(str(r.text))
+        logger.debug("HTTP Response: {!s} - {} - {}".format(r.status_code, r.reason, r.text))
+
         return r.text
 
     def post_subnet(self, data):
         url = self.base_url + '/api/1.0/subnets/'
         logger.info('Posting data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_ip(self, data):
         url = self.base_url + '/api/ip/'
         logger.info('Posting IP data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_device(self, data):
         url = self.base_url + '/api/1.0/device/'
         logger.info('Posting device data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_location(self, data):
         url = self.base_url + '/api/1.0/location/'
         logger.info('Posting location data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_room(self, data):
         url = self.base_url + '/api/1.0/rooms/'
         logger.info('Posting room data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_rack(self, data):
         url = self.base_url + '/api/1.0/racks/'
         logger.info('Posting rack data to {}'.format(url))
-        logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu(self, data):
         url = self.base_url + '/api/1.0/pdus/'
         logger.info('Posting PDU data to {}'.format(url))
-        logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu_model(self, data):
         url = self.base_url + '/api/1.0/pdu_models/'
         logger.info('Posting PDU model to {}'.format(url))
-        logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu_to_rack(self, data, rack):
         url = self.base_url + '/api/1.0/pdus/rack/'
         logger.info('Posting PDU to rack {}'.format(rack))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_hardware(self, data):
         url = self.base_url + '/api/1.0/hardwares/'
         logger.info('Adding hardware data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_device2rack(self, data):
         url = self.base_url + '/api/1.0/device/rack/'
         logger.info('Adding device to rack at {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_building(self, data):
         url = self.base_url + '/dcim/sites/'
         logger.info('Uploading building data to {}'.format(url))
-        logger.info(data)
         self.uploader(data, url)
 
     def post_switchport(self, data):
         url = self.base_url + '/api/1.0/switchports/'
         logger.info('Uploading switchports data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_patch_panel(self, data):
         url = self.base_url + '/api/1.0/patch_panel_models/'
         logger.info('Uploading patch panels data to {}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def post_patch_panel_module_models(self, data):
         url = self.base_url + '/api/1.0/patch_panel_module_models/'
         logger.info('Uploading patch panels modules data to {}}'.format(url))
-        logger.info(data)
         # self.uploader(data, url)
 
     def get_pdu_models(self):
