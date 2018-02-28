@@ -16,27 +16,31 @@ conf = imp.load_source('conf', 'conf')
 api_url_base = conf.NETBOX_URL
 
 def api_request(method, url):
-    logger.debug(method + " - " + url)
+    # Log which request we're trying to do
+    logger.debug("HTTP Request: {} - {}".format(method, url))
     
+    # Prepare request
     request = requests.Request(method, url)
     prepared_request = s.prepare_request(request)
+    
     response = s.send(prepared_request)
 
-    logger.debug(str(response.status_code) + " - " + response.reason)
+    # Log HTTP Response
+    logger.debug("HTTP Response: {!s} - {}".format(response.status_code, response.reason))
     
     return response
 
 def delete_sites():
     logger.info('Deleting Sites')
     # Get all sites
-    api_url = '{0}/dcim/sites'.format(api_url_base)
+    api_url = '{}/dcim/sites'.format(api_url_base)
 
     response = api_request('GET', api_url)
     sites = json.loads(response.content.decode('utf-8'))
 
     # Delete every site you got
     for site in sites['results']:
-        url = '{0}/{1}'.format(api_url, site['id'])
+        url = '{}/{}'.format(api_url, site['id'])
         response = api_request('DELETE', url)
 
     return

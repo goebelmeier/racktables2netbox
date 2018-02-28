@@ -42,183 +42,166 @@ conf = imp.load_source('conf', 'conf')
 
 class REST(object):
     def __init__(self):
-        self.token = conf.NETBOX_TOKEN
         self.base_url = conf.NETBOX_URL
 
-    def uploader(self, data, url):
-        payload = data
-        headers = {
-            'Authorization' : 'Token ' + self.token,
-            'Content-Type' : 'application/json'
-        }
+        # Create HTTP connection pool
+        self.s = requests.Session()
 
-        r = requests.post(url, data=payload, headers=headers, verify=False)
-        msg = str(payload)
-        logger.info(msg)
-        msg = 'Status code: %s' % str(r.status_code)
-        logger.info(msg)
-        msg = str(r.text)
-        logger.info(msg)
+        # Disable SSL verification
+        self.s.verify = False
+
+        # Define REST Headers
+        headers = {'Content-Type': 'application/json', 
+            'Accept': 'application/json; indent=4',
+            'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+
+        self.s.headers.update(headers)
+
+    def uploader(self, data, url):
+        method = 'POST'
+        request = requests.Request(method, url, data = data)
+        prepared_request = self.s.prepare_request(request)
+        r = self.s.send(prepared_request)
+
+        logger.info(str(data))
+        logger.info('Status code: {!s}'.format(r.status_code))
+        logger.info(str(r.text))
 
         try:
             return r.json()
         except Exception as e:
-
-            print ('\n[*] Exception: %s' % str(e))
+            logger.exception('[*] Exception: {!s}'.format(e))
             pass
 
     def fetcher(self, url):
-        headers = {
-            'Authorization' : 'Token ' + self.token,
-            'Accept' : 'application/json; indent=4'
-        }
+        method = 'GET'
+        request = requests.Request(method, url)
+        prepared_request = self.s.prepare_request(request)
+        r = self.s.send(prepared_request)
 
-        r = requests.get(url, headers=headers, verify=False)
-        msg = 'Status code: %s' % str(r.status_code)
-        logger.info(msg)
-        msg = str(r.text)
-        logger.info(msg)
+        logger.info('Status code: {!s}'.format(r.status_code))
+        logger.info(str(r.text))
         return r.text
 
     def post_subnet(self, data):
         url = self.base_url + '/api/1.0/subnets/'
-        msg = '\r\nPosting data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_ip(self, data):
         url = self.base_url + '/api/ip/'
-        msg = '\r\nPosting IP data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting IP data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_device(self, data):
         url = self.base_url + '/api/1.0/device/'
-        msg = '\r\nPosting device data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting device data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_location(self, data):
         url = self.base_url + '/api/1.0/location/'
-        msg = '\r\nPosting location data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting location data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_room(self, data):
         url = self.base_url + '/api/1.0/rooms/'
-        msg = '\r\nPosting room data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting room data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_rack(self, data):
         url = self.base_url + '/api/1.0/racks/'
-        msg = '\r\nPosting rack data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting rack data to {}'.format(url))
         logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu(self, data):
         url = self.base_url + '/api/1.0/pdus/'
-        msg = '\r\nPosting PDU data to %s ' % url
-        logger.info(msg)
+        logger.info('Posting PDU data to {}'.format(url))
         logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu_model(self, data):
         url = self.base_url + '/api/1.0/pdu_models/'
-        msg = '\r\nPosting PDU model to %s ' % url
-        logger.info(msg)
+        logger.info('Posting PDU model to {}'.format(url))
         logger.info(data)
         # response = self.uploader(data, url)
         return response
 
     def post_pdu_to_rack(self, data, rack):
         url = self.base_url + '/api/1.0/pdus/rack/'
-        msg = '\r\nPosting PDU to rack %s ' % rack
-        logger.info(msg)
+        logger.info('Posting PDU to rack {}'.format(rack))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_hardware(self, data):
         url = self.base_url + '/api/1.0/hardwares/'
-        msg = '\r\nAdding hardware data to %s ' % url
-        logger.info(msg)
+        logger.info('Adding hardware data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_device2rack(self, data):
         url = self.base_url + '/api/1.0/device/rack/'
-        msg = '\r\nAdding device to rack at %s ' % url
-        logger.info(msg)
+        logger.info('Adding device to rack at {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_building(self, data):
-        url = self.base_url + '/api/dcim/sites/'
-        msg = '\r\nUploading building data to %s ' % url
-        logger.info(msg)
+        url = self.base_url + '/dcim/sites/'
+        logger.info('Uploading building data to {}'.format(url))
         logger.info(data)
         self.uploader(data, url)
 
     def post_switchport(self, data):
         url = self.base_url + '/api/1.0/switchports/'
-        msg = '\r\nUploading switchports data to %s ' % url
-        logger.info(msg)
+        logger.info('Uploading switchports data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_patch_panel(self, data):
         url = self.base_url + '/api/1.0/patch_panel_models/'
-        msg = '\r\nUploading patch panels data to %s ' % url
-        logger.info(msg)
+        logger.info('Uploading patch panels data to {}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def post_patch_panel_module_models(self, data):
         url = self.base_url + '/api/1.0/patch_panel_module_models/'
-        msg = '\r\nUploading patch panels modules data to %s ' % url
-        logger.info(msg)
+        logger.info('Uploading patch panels modules data to {}}'.format(url))
         logger.info(data)
         # self.uploader(data, url)
 
     def get_pdu_models(self):
         url = self.base_url + '/api/1.0/pdu_models/'
-        msg = '\r\nFetching PDU models from %s ' % url
-        logger.info(msg)
+        logger.info('Fetching PDU models from {}'.format(url))
         # self.fetcher(url)
 
     def get_racks(self):
         url = self.base_url + '/api/1.0/racks/'
-        msg = '\r\nFetching racks from %s ' % url
-        logger.info(msg)
+        logger.info('Fetching racks from {}'.format(url))
         # data = self.fetcher(url)
         return data
 
     def get_devices(self):
         url = self.base_url + '/api/1.0/devices/'
-        msg = '\r\nFetching devices from %s ' % url
-        logger.info(msg)
+        logger.info('Fetching devices from {}'.format(url))
         # data = self.fetcher(url)
         return data
 
     def get_buildings(self):
         url = self.base_url + '/api/dcim/sites/'
-        msg = '\r\nFetching buildings from %s ' % url
-        logger.info(msg)
+        logger.info('Fetching buildings from {}'.format(url))
         # data = self.fetcher(url)
         return data
 
     def get_rooms(self):
         url = self.base_url + '/api/1.0/rooms/'
-        msg = '\r\nFetching rooms from %s ' % url
-        logger.info(msg)
+        logger.info('Fetching rooms from {}'.format(url))
         # data = self.fetcher(url)
         return data
 
@@ -1175,30 +1158,39 @@ def main():
     # db.get_subnets()
     # db.get_ips()
     db.get_infrastructure()
-    db.get_hardware()
-    db.get_container_map()
-    db.get_chassis()
-    db.get_vmhosts()
-    db.get_device_to_ip()
-    db.get_pdus()
-    db.get_patch_panels()
-    db.get_devices()
+    # db.get_hardware()
+    # db.get_container_map()
+    # db.get_chassis()
+    # db.get_vmhosts()
+    # db.get_device_to_ip()
+    # db.get_pdus()
+    # db.get_patch_panels()
+    # db.get_devices()
 
 
 if __name__ == '__main__':
+    # Initialize logging platform
     logger = logging.getLogger('racktables2netbox')
     logger.setLevel(logging.DEBUG)
+
+    # Log to file
     fh = logging.FileHandler(conf.LOGFILE)
     fh.setLevel(logging.DEBUG)
+
+    # Log to stdout
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.DEBUG)
+
+    # Format log output
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
+
+    # Attach handlers to logger
     logger.addHandler(fh)
     logger.addHandler(ch)
 
     rest = REST()
     main()
-    print ('\n[!] Done!')
+    logger.info('[!] Done!')
     sys.exit()

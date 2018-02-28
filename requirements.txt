@@ -1,0 +1,2 @@
+PyMySQL>=0.8.0
+python-slugify>=1.2.4
