@@ -16,7 +16,7 @@ DEBUG     = True  # write debug log
 # D42_URL  = 'https:// device42 server IP address'
 # ====== NetBox upload settings ========= #
 NETBOX_TOKEN = '<CREATE INSIDE NETBOX>'
-NETBOX_URL   = 'https://netbox.eventim.net'
+NETBOX_URL   = 'https://netbox.eventim.net/api'
 # ====== Other settings ========= #
 CHILD_AS_BUILDING = True  # use RT's sub-location as Device42 building. If False, use it as a Device42 room.
 ROW_AS_ROOM = True  # use RT's row as Device42 room.

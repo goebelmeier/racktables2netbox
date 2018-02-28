@@ -13,20 +13,15 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Load config file into variable
 conf = imp.load_source('conf', 'conf')
-
-api_token = conf.NETBOX_TOKEN
 api_url_base = conf.NETBOX_URL
 
-# Define REST Headers
-headers = {'Content-Type': 'application/json',
-           'Authorization': 'Token {0}'.format(api_token)}
-
-def api_request(method, url, headers):
+def api_request(method, url):
     logger.debug(method + " - " + url)
     
-    request = requests.Request(method, url, headers=headers)
-    response = s.send(request.prepare(), verify=False)
-    
+    request = requests.Request(method, url)
+    prepared_request = s.prepare_request(request)
+    response = s.send(prepared_request)
+
     logger.debug(str(response.status_code) + " - " + response.reason)
     
     return response
@@ -34,15 +29,15 @@ def api_request(method, url, headers):
 def delete_sites():
     logger.info('Deleting Sites')
     # Get all sites
-    api_url = '{0}/api/dcim/sites'.format(api_url_base)
+    api_url = '{0}/dcim/sites'.format(api_url_base)
 
-    response = api_request('GET', api_url, headers)
+    response = api_request('GET', api_url)
     sites = json.loads(response.content.decode('utf-8'))
 
     # Delete every site you got
     for site in sites['results']:
         url = '{0}/{1}'.format(api_url, site['id'])
-        response = api_request('DELETE', url, headers)
+        response = api_request('DELETE', url)
 
     return
 
@@ -72,7 +67,29 @@ if __name__ == '__main__':
     logger.addHandler(fh)
     logger.addHandler(ch)
 
+    # Create HTTP connection pool
     s = requests.Session()
+
+    # Disable SSL verification
+    s.verify = False
+
+    # Define REST Headers
+    headers = {'Content-Type': 'application/json', 
+        'Accept': 'application/json; indent=4',
+        'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+
+    s.headers.update(headers)
+
+    # try:
+    #     import http.client as http_client
+    # except ImportError:
+    #     # Python 2
+    #     import httplib as http_client
+    # http_client.HTTPConnection.debuglevel = 1
+
+    # requests_log = logging.getLogger("requests.packages.urllib3")
+    # requests_log.setLevel(logging.DEBUG)
+    # requests_log.propagate = True
 
     # Run the main function
     main()
