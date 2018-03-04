@@ -17,24 +17,21 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # Refer to README for further instructions
 #############################################################################################################
 
-import imp
+import configparser
+import json
+import logging
+import socket
+import struct
 import pymysql as sql
 import requests
 import urllib3
-import struct
-import socket
-import json
-import logging
 from slugify import slugify
 
 # Re-Enabled SSL verification
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-conf = imp.load_source('conf', 'conf')
-
 class REST(object):
     def __init__(self):
-        self.base_url = conf.NETBOX_URL
+        self.base_url = config['NetBox']['NETBOX_URL']
 
         # Create HTTP connection pool
         self.s = requests.Session()
@@ -45,7 +42,7 @@ class REST(object):
         # Define REST Headers
         headers = {'Content-Type': 'application/json', 
             'Accept': 'application/json; indent=4',
-            'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+            'Authorization': 'Token {0}'.format(config['NetBox']['NETBOX_TOKEN'])}
 
         self.s.headers.update(headers)
 
@@ -207,8 +204,8 @@ class DB(object):
         Connection to RT database
         :return:
         """
-        self.con = sql.connect(host=conf.DB_IP, port=int(conf.DB_PORT),
-                               db=conf.DB_NAME, user=conf.DB_USER, passwd=conf.DB_PWD)
+        self.con = sql.connect(host=config['MySQL']['DB_IP'], port=int(config['MySQL']['DB_PORT']),
+                               db=config['MySQL']['DB_NAME'], user=config['MySQL']['DB_USER'], passwd=config['MySQL']['DB_PWD'])
 
     @staticmethod
     def convert_ip(ip_raw):
@@ -233,7 +230,7 @@ class DB(object):
             q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != ""'
             cur.execute(q)
             ips = cur.fetchall()
-            if conf.DEBUG:
+            if config['Log']['DEBUG']:
                 msg = ('IPs', str(ips))
                 logger.debug(msg)
 
@@ -265,7 +262,7 @@ class DB(object):
             q = "SELECT * FROM IPv4Network"
             cur.execute(q)
             subnets = cur.fetchall()
-            if conf.DEBUG:
+            if config['Log']['DEBUG']:
                 msg = ('Subnets', str(subnets))
                 logger.debug(msg)
         for line in subnets:
@@ -295,7 +292,7 @@ class DB(object):
             q = """select id,name, parent_id, parent_name from Location"""
             cur.execute(q)
             raw = cur.fetchall()
-        if conf.CHILD_AS_BUILDING:
+        if config['Misc']['CHILD_AS_BUILDING']:
             for rec in raw:
                 building_id, building_name, parent_id, parent_name = rec
                 buildings_map.update({building_id: building_name})
@@ -308,7 +305,7 @@ class DB(object):
                     rooms_map.update({building_name: parent_name})
 
         # upload buildings
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Buildings', str(buildings_map))
             logger.debug(msg)
         bdata = {}
@@ -318,7 +315,7 @@ class DB(object):
 
         # upload rooms
         buildings = json.loads((rest.get_buildings()))['buildings']
-        if not conf.CHILD_AS_BUILDING:
+        if not config['Misc']['CHILD_AS_BUILDING']:
             for room, parent in list(rooms_map.items()):
                 roomdata = {}
                 roomdata.update({'name': room})
@@ -342,7 +339,7 @@ class DB(object):
             rack.update({'name': rack_name})
             rack.update({'size': height})
             rack.update({'rt_id': rack_id})  # we will remove this later
-            if conf.ROW_AS_ROOM:
+            if config['Misc']['ROW_AS_ROOM']:
                 rack.update({'room': row_name})
                 rack.update({'building': location_name})
             else:
@@ -357,8 +354,8 @@ class DB(object):
             racks.append(rack)
 
         # upload rows as rooms
-        if conf.ROW_AS_ROOM:
-            if conf.DEBUG:
+        if config['Misc']['ROW_AS_ROOM']:
+            if config['Log']['DEBUG']:
                 msg = ('Rooms', str(rows_map))
                 logger.debug(msg)
             for room, parent in list(rows_map.items()):
@@ -368,7 +365,7 @@ class DB(object):
                 rest.post_room(roomdata)
 
         # upload racks
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Racks', str(racks))
             logger.debug(msg)
         for rack in racks:
@@ -403,7 +400,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Hardware', str(data))
             logger.debug(msg)
 
@@ -831,11 +828,11 @@ class DB(object):
                     IPv4Allocation.ip,IPv4Allocation.name,
                     Object.name as hostname
                     FROM %s.`IPv4Allocation`
-                    LEFT JOIN Object ON Object.id = object_id""" % conf.DB_NAME
+                    LEFT JOIN Object ON Object.id = object_id""" % config['MySQL']['DB_NAME']
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Device to IP', str(data))
             logger.debug(msg)
 
@@ -868,7 +865,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('PDUs', str(data))
             logger.debug(msg)
 
@@ -953,12 +950,12 @@ class DB(object):
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
                         \n\tWrong rack id map value: %s' % (name, pdu_id, str(rack_id))
                         logger.info(msg)
-                    if conf.PDU_MOUNT.lower() in ('left', 'right', 'above', 'below'):
-                        where = conf.PDU_MOUNT.lower()
+                    if config['Misc']['PDU_MOUNT'].lower() in ('left', 'right', 'above', 'below'):
+                        where = config['Misc']['PDU_MOUNT'].lower()
                     else:
                         where = 'left'
-                    if conf.PDU_ORIENTATION.lower() in ('front', 'back'):
-                        mount = conf.PDU_ORIENTATION.lower()
+                    if config['Misc']['PDU_ORIENTATION'].lower() in ('front', 'back'):
+                        mount = config['Misc']['PDU_ORIENTATION'].lower()
                     else:
                         mount = 'front'
                     rdata = {}
@@ -992,7 +989,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('PDUs', str(data))
             logger.debug(msg)
 
@@ -1150,12 +1147,16 @@ def main():
 
 
 if __name__ == '__main__':
+    # Import config
+    config = configparser.ConfigParser()
+    config.read('conf')
+
     # Initialize logging platform
     logger = logging.getLogger('racktables2netbox')
     logger.setLevel(logging.DEBUG)
 
     # Log to file
-    fh = logging.FileHandler(conf.LOGFILE)
+    fh = logging.FileHandler(config['Log']['LOGFILE'])
     fh.setLevel(logging.DEBUG)
 
     # Log to stdout
