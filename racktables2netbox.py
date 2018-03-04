@@ -27,7 +27,8 @@ import json
 import logging
 from slugify import slugify
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Re-Enabled SSL verification
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 conf = imp.load_source('conf', 'conf')
 
@@ -38,8 +39,8 @@ class REST(object):
         # Create HTTP connection pool
         self.s = requests.Session()
 
-        # Disable SSL verification
-        self.s.verify = False
+        # SSL verification
+        self.s.verify = True
 
         # Define REST Headers
         headers = {'Content-Type': 'application/json', 
