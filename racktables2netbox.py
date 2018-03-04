@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 __version__ = 5.23
 
 """
@@ -18,18 +17,10 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # Refer to README for further instructions
 #############################################################################################################
 
-from builtins import input
-from builtins import str
-from builtins import object
-
-import sys
 import imp
-import os
 import pymysql as sql
-import codecs
 import requests
 import urllib3
-import base64
 import struct
 import socket
 import json
@@ -1182,4 +1173,4 @@ if __name__ == '__main__':
     rest = REST()
     main()
     logger.info('[!] Done!')
-    sys.exit()
+    # sys.exit()
