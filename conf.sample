@@ -20,6 +20,7 @@ DEBUG     = True  # write debug log
 # ====== NetBox upload settings ========= #
 [NetBox]
 NETBOX_TOKEN = <CREATE INSIDE NETBOX>
+NETBOX_HOST  = https://netbox.eventim.net
 NETBOX_URL   = https://netbox.eventim.net/api
 # ====== Other settings ========= #
 [Misc]
