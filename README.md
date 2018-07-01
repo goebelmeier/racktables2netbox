@@ -16,7 +16,7 @@ cp conf.sample conf
 5. optional: to get back to a clean NetBox installation run `python3 clean_netbox.py`
 
 ## Contributing
-1. Migration should follow a strict order. Please have a look at the corresponding [wiki page](wiki/Migration-order)
+1. Migration should follow a strict order. Please have a look at the corresponding [wiki page](https://github.com/goebelmeier/racktables2netbox/wiki/Migration-order)
 1. Fork it (<https://github.com/yourname/yourproject/fork>)
 2. Create your feature branch (`git checkout -b feature/fooBar`)
 3. Commit your changes (`git commit -am 'Add some fooBar'`)
