@@ -1,34 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-__version__ = 5.23
-
-"""
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""
-
-#############################################################################################################
-# v5.0 of python script that connects to RackTables DB and migrates data to Device42 appliance using APIs
-# Refer to README for further instructions
-#############################################################################################################
+__version__ = 1.00
 
 import configparser
 import json
 import logging
-import socket
-import struct
-import pathlib
 import pprint
-import pymysql as sql
+import pymysql
 import pynetbox
 import requests
-import urllib3
 import slugify
+import socket
+import struct
+import urllib3
 
 class Migrator:
     def slugify(self, text):
@@ -111,112 +95,112 @@ class REST(object):
 
         return r.text
 
-    def post_subnet(self, data):
-        url = self.base_url + '/api/1.0/subnets/'
-        logger.info('Posting data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_subnet(self, data):
+    #     url = self.base_url + '/api/1.0/subnets/'
+    #     logger.info('Posting data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_ip(self, data):
-        url = self.base_url + '/api/ip/'
-        logger.info('Posting IP data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_ip(self, data):
+    #     url = self.base_url + '/api/ip/'
+    #     logger.info('Posting IP data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_device(self, data):
-        url = self.base_url + '/api/1.0/device/'
-        logger.info('Posting device data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_device(self, data):
+    #     url = self.base_url + '/api/1.0/device/'
+    #     logger.info('Posting device data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_location(self, data):
-        url = self.base_url + '/api/1.0/location/'
-        logger.info('Posting location data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_location(self, data):
+    #     url = self.base_url + '/api/1.0/location/'
+    #     logger.info('Posting location data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_room(self, data):
-        url = self.base_url + '/api/1.0/rooms/'
-        logger.info('Posting room data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_room(self, data):
+    #     url = self.base_url + '/api/1.0/rooms/'
+    #     logger.info('Posting room data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_rack(self, data):
-        url = self.base_url + '/api/1.0/racks/'
-        logger.info('Posting rack data to {}'.format(url))
-        # response = self.uploader(data, url)
-        return response
+    # def post_rack(self, data):
+    #     url = self.base_url + '/api/1.0/racks/'
+    #     logger.info('Posting rack data to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu(self, data):
-        url = self.base_url + '/api/1.0/pdus/'
-        logger.info('Posting PDU data to {}'.format(url))
-        # response = self.uploader(data, url)
-        return response
+    # def post_pdu(self, data):
+    #     url = self.base_url + '/api/1.0/pdus/'
+    #     logger.info('Posting PDU data to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu_model(self, data):
-        url = self.base_url + '/api/1.0/pdu_models/'
-        logger.info('Posting PDU model to {}'.format(url))
-        # response = self.uploader(data, url)
-        return response
+    # def post_pdu_model(self, data):
+    #     url = self.base_url + '/api/1.0/pdu_models/'
+    #     logger.info('Posting PDU model to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu_to_rack(self, data, rack):
-        url = self.base_url + '/api/1.0/pdus/rack/'
-        logger.info('Posting PDU to rack {}'.format(rack))
-        # self.uploader(data, url)
+    # def post_pdu_to_rack(self, data, rack):
+    #     url = self.base_url + '/api/1.0/pdus/rack/'
+    #     logger.info('Posting PDU to rack {}'.format(rack))
+    #     self.uploader(data, url)
 
-    def post_hardware(self, data):
-        url = self.base_url + '/api/1.0/hardwares/'
-        logger.info('Adding hardware data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_hardware(self, data):
+    #     url = self.base_url + '/api/1.0/hardwares/'
+    #     logger.info('Adding hardware data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_device2rack(self, data):
-        url = self.base_url + '/api/1.0/device/rack/'
-        logger.info('Adding device to rack at {}'.format(url))
-        # self.uploader(data, url)
+    # def post_device2rack(self, data):
+    #     url = self.base_url + '/api/1.0/device/rack/'
+    #     logger.info('Adding device to rack at {}'.format(url))
+    #     self.uploader(data, url)
 
     def post_building(self, data):
         url = self.base_url + '/dcim/sites/'
         logger.info('Uploading building data to {}'.format(url))
         self.uploader(data, url)
 
-    def post_switchport(self, data):
-        url = self.base_url + '/api/1.0/switchports/'
-        logger.info('Uploading switchports data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_switchport(self, data):
+    #     url = self.base_url + '/api/1.0/switchports/'
+    #     logger.info('Uploading switchports data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_patch_panel(self, data):
-        url = self.base_url + '/api/1.0/patch_panel_models/'
-        logger.info('Uploading patch panels data to {}'.format(url))
-        # self.uploader(data, url)
+    # def post_patch_panel(self, data):
+    #     url = self.base_url + '/api/1.0/patch_panel_models/'
+    #     logger.info('Uploading patch panels data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_patch_panel_module_models(self, data):
-        url = self.base_url + '/api/1.0/patch_panel_module_models/'
-        logger.info('Uploading patch panels modules data to {}}'.format(url))
-        # self.uploader(data, url)
+    # def post_patch_panel_module_models(self, data):
+    #     url = self.base_url + '/api/1.0/patch_panel_module_models/'
+    #     logger.info('Uploading patch panels modules data to {}}'.format(url))
+    #     self.uploader(data, url)
 
-    def get_pdu_models(self):
-        url = self.base_url + '/api/1.0/pdu_models/'
-        logger.info('Fetching PDU models from {}'.format(url))
-        # self.fetcher(url)
+    # def get_pdu_models(self):
+    #     url = self.base_url + '/api/1.0/pdu_models/'
+    #     logger.info('Fetching PDU models from {}'.format(url))
+    #     self.fetcher(url)
 
-    def get_racks(self):
-        url = self.base_url + '/api/1.0/racks/'
-        logger.info('Fetching racks from {}'.format(url))
-        # data = self.fetcher(url)
-        return data
+    # def get_racks(self):
+    #     url = self.base_url + '/api/1.0/racks/'
+    #     logger.info('Fetching racks from {}'.format(url))
+    #     ata = self.fetcher(url)
+    #     return data
 
-    def get_devices(self):
-        url = self.base_url + '/api/1.0/devices/'
-        logger.info('Fetching devices from {}'.format(url))
-        # data = self.fetcher(url)
-        return data
+    # def get_devices(self):
+    #     url = self.base_url + '/api/1.0/devices/'
+    #     logger.info('Fetching devices from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
-    def get_buildings(self):
-        url = self.base_url + '/api/dcim/sites/'
-        logger.info('Fetching buildings from {}'.format(url))
-        # data = self.fetcher(url)
-        return data
+    # def get_buildings(self):
+    #     url = self.base_url + '/api/dcim/sites/'
+    #     logger.info('Fetching buildings from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
-    def get_rooms(self):
-        url = self.base_url + '/api/1.0/rooms/'
-        logger.info('Fetching rooms from {}'.format(url))
-        # data = self.fetcher(url)
-        return data
+    # def get_rooms(self):
+    #     url = self.base_url + '/api/1.0/rooms/'
+    #     logger.info('Fetching rooms from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
 
 class DB(object):
@@ -239,7 +223,7 @@ class DB(object):
         Connection to RT database
         :return:
         """
-        self.con = sql.connect(
+        self.con = pymysql.connect(
             host=config['MySQL']['DB_IP'], 
             port=int(config['MySQL']['DB_PORT']),
             db=config['MySQL']['DB_NAME'], 
@@ -287,7 +271,7 @@ class DB(object):
             net.update({'tag': name})
             msg = 'Label: %s' % name
             logger.info(msg)
-            rest.post_ip(net)
+            # rest.post_ip(net)
 
     def get_subnets(self):
         """
@@ -311,7 +295,7 @@ class DB(object):
             subs.update({'network': subnet})
             subs.update({'mask_bits': str(mask)})
             subs.update({'name': name})
-            rest.post_subnet(subs)        
+            # rest.post_subnet(subs)        
 
     def get_infrastructure(self):
         """
@@ -511,7 +495,7 @@ class DB(object):
                 hwddata.update({'depth': depth})
                 hwddata.update({'name': model[:48]})
                 hwddata.update({'manufacturer': vendor})
-                rest.post_hardware(hwddata)
+                # rest.post_hardware(hwddata)
 
     def get_hardware_size(self, data_id):
         """
@@ -599,7 +583,7 @@ class DB(object):
             hwddata.update({'depth': depth})
         if name:
             hwddata.update({'name': name[:48]})
-            rest.post_hardware(hwddata)
+            # rest.post_hardware(hwddata)
 
     def get_vmhosts(self):
         if not self.con:
@@ -620,7 +604,7 @@ class DB(object):
             self.vm_hosts.update({host_id: name})
             dev.update({'name': name})
             dev.update({'is_it_virtual_host': 'yes'})
-            rest.post_device(dev)
+            # rest.post_device(dev)
 
     def get_chassis(self):
         if not self.con:
@@ -641,7 +625,7 @@ class DB(object):
             self.chassis.update({host_id: name})
             dev.update({'name': name})
             dev.update({'is_it_blade_host': 'yes'})
-            rest.post_device(dev)
+            # rest.post_device(dev)
 
     def get_container_map(self):
         """
@@ -836,7 +820,7 @@ class DB(object):
                                 device_name = self.get_device_by_port(get_links[0])
                                 switchport_data.update({'device': device_name})
                                 switchport_data.update({'remote_device': device_name})
-                                switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                                # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
                                 rest.post_switchport(switchport_data)
 
