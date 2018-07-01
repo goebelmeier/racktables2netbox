@@ -1,226 +1,206 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from __future__ import print_function
-__version__ = 5.23
+__version__ = 1.00
 
-"""
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""
-
-#############################################################################################################
-# v5.0 of python script that connects to RackTables DB and migrates data to Device42 appliance using APIs
-# Refer to README for further instructions
-#############################################################################################################
-
-from builtins import input
-from builtins import str
-from builtins import object
-
-import sys
-import imp
-import os
-import pymysql as sql
-import codecs
-import requests
-import urllib3
-import base64
-import struct
-import socket
+import configparser
 import json
 import logging
-from slugify import slugify
+import pprint
+import pymysql
+import pynetbox
+import requests
+import slugify
+import socket
+import struct
+import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+class Migrator:
+    def slugify(self, text):
+        return slugify.slugify(text, max_length=50)
 
-conf = imp.load_source('conf', 'conf')
+    def create_tenant_group(self, name):
+        pass
 
-class REST(object):
-    def __init__(self):
-        self.token = conf.NETBOX_TOKEN
-        self.base_url = conf.NETBOX_URL
+    def create_tenant(self, name, tenant_group=None):
+        logger.info("Creating tenant {}").format(name)
 
-    def uploader(self, data, url):
-        payload = data
-        headers = {
-            'Authorization' : 'Token ' + self.token,
-            'Content-Type' : 'application/json'
+        tenant = {
+            'name': name,
+            'slug': self.slugify(name)
         }
 
-        r = requests.post(url, data=payload, headers=headers, verify=False)
-        msg = str(payload)
-        logger.info(msg)
-        msg = 'Status code: %s' % str(r.status_code)
-        logger.info(msg)
-        msg = str(r.text)
-        logger.info(msg)
+        if tenant_group:
+            tenant["tenant_group"] = netbox.tenancy.tenant_groups.all()
+        
+        return netbox.tenancy.tenants.create(tenant)
+
+    def create_region(self, name, parent=None):
+        netbox.dcim.regions.create()
+
+        if not parent:
+            pass 
+        pass
+
+    def create_site(self, name, region, status, physical_address, facility, shipping_address, contact_phone, contact_email, contact_name, tenant, time_zone):
+        slug = self.slugify(name)
+        pass    
+
+
+# Re-Enabled SSL verification
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+class REST(object):
+    def __init__(self):
+        self.base_url = "{}/api".format(config['NetBox']['NETBOX_HOST'])
+
+        # Create HTTP connection pool
+        self.s = requests.Session()
+
+        # SSL verification
+        self.s.verify = True
+
+        # Define REST Headers
+        headers = {'Content-Type': 'application/json', 
+            'Accept': 'application/json; indent=4',
+            'Authorization': 'Token {0}'.format(config['NetBox']['NETBOX_TOKEN'])}
+
+        self.s.headers.update(headers)
+
+    def uploader(self, data, url):
+        method = 'POST'
+        
+        logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
+
+        request = requests.Request(method, url, data = data)
+        prepared_request = self.s.prepare_request(request)
+        r = self.s.send(prepared_request)
+
+        logger.debug("HTTP Response: {status_code!s} - {reason} - {text}".format(**r))
 
         try:
             return r.json()
         except Exception as e:
-
-            print ('\n[*] Exception: %s' % str(e))
+            logger.exception('[*] Exception: {!s}'.format(e))
             pass
 
     def fetcher(self, url):
-        headers = {
-            'Authorization' : 'Token ' + self.token,
-            'Accept' : 'application/json; indent=4'
-        }
+        method = 'GET'
 
-        r = requests.get(url, headers=headers, verify=False)
-        msg = 'Status code: %s' % str(r.status_code)
-        logger.info(msg)
-        msg = str(r.text)
-        logger.info(msg)
+        logger.debug("HTTP Request: {} - {}".format(method, url))
+
+        request = requests.Request(method, url)
+        prepared_request = self.s.prepare_request(request)
+        r = self.s.send(prepared_request)
+
+        logger.debug("HTTP Response: {status_code!s} - {reason} - {text}".format(**r))
+
         return r.text
 
-    def post_subnet(self, data):
-        url = self.base_url + '/api/1.0/subnets/'
-        msg = '\r\nPosting data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_subnet(self, data):
+    #     url = self.base_url + '/api/1.0/subnets/'
+    #     logger.info('Posting data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_ip(self, data):
-        url = self.base_url + '/api/ip/'
-        msg = '\r\nPosting IP data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_ip(self, data):
+    #     url = self.base_url + '/api/ip/'
+    #     logger.info('Posting IP data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_device(self, data):
-        url = self.base_url + '/api/1.0/device/'
-        msg = '\r\nPosting device data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_device(self, data):
+    #     url = self.base_url + '/api/1.0/device/'
+    #     logger.info('Posting device data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_location(self, data):
-        url = self.base_url + '/api/1.0/location/'
-        msg = '\r\nPosting location data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_location(self, data):
+    #     url = self.base_url + '/api/1.0/location/'
+    #     logger.info('Posting location data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_room(self, data):
-        url = self.base_url + '/api/1.0/rooms/'
-        msg = '\r\nPosting room data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_room(self, data):
+    #     url = self.base_url + '/api/1.0/rooms/'
+    #     logger.info('Posting room data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_rack(self, data):
-        url = self.base_url + '/api/1.0/racks/'
-        msg = '\r\nPosting rack data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # response = self.uploader(data, url)
-        return response
+    # def post_rack(self, data):
+    #     url = self.base_url + '/api/1.0/racks/'
+    #     logger.info('Posting rack data to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu(self, data):
-        url = self.base_url + '/api/1.0/pdus/'
-        msg = '\r\nPosting PDU data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # response = self.uploader(data, url)
-        return response
+    # def post_pdu(self, data):
+    #     url = self.base_url + '/api/1.0/pdus/'
+    #     logger.info('Posting PDU data to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu_model(self, data):
-        url = self.base_url + '/api/1.0/pdu_models/'
-        msg = '\r\nPosting PDU model to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # response = self.uploader(data, url)
-        return response
+    # def post_pdu_model(self, data):
+    #     url = self.base_url + '/api/1.0/pdu_models/'
+    #     logger.info('Posting PDU model to {}'.format(url))
+    #     response = self.uploader(data, url)
+    #     return response
 
-    def post_pdu_to_rack(self, data, rack):
-        url = self.base_url + '/api/1.0/pdus/rack/'
-        msg = '\r\nPosting PDU to rack %s ' % rack
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_pdu_to_rack(self, data, rack):
+    #     url = self.base_url + '/api/1.0/pdus/rack/'
+    #     logger.info('Posting PDU to rack {}'.format(rack))
+    #     self.uploader(data, url)
 
-    def post_hardware(self, data):
-        url = self.base_url + '/api/1.0/hardwares/'
-        msg = '\r\nAdding hardware data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_hardware(self, data):
+    #     url = self.base_url + '/api/1.0/hardwares/'
+    #     logger.info('Adding hardware data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_device2rack(self, data):
-        url = self.base_url + '/api/1.0/device/rack/'
-        msg = '\r\nAdding device to rack at %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_device2rack(self, data):
+    #     url = self.base_url + '/api/1.0/device/rack/'
+    #     logger.info('Adding device to rack at {}'.format(url))
+    #     self.uploader(data, url)
 
     def post_building(self, data):
-        url = self.base_url + '/api/dcim/sites/'
-        msg = '\r\nUploading building data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
+        url = self.base_url + '/dcim/sites/'
+        logger.info('Uploading building data to {}'.format(url))
         self.uploader(data, url)
 
-    def post_switchport(self, data):
-        url = self.base_url + '/api/1.0/switchports/'
-        msg = '\r\nUploading switchports data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_switchport(self, data):
+    #     url = self.base_url + '/api/1.0/switchports/'
+    #     logger.info('Uploading switchports data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_patch_panel(self, data):
-        url = self.base_url + '/api/1.0/patch_panel_models/'
-        msg = '\r\nUploading patch panels data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_patch_panel(self, data):
+    #     url = self.base_url + '/api/1.0/patch_panel_models/'
+    #     logger.info('Uploading patch panels data to {}'.format(url))
+    #     self.uploader(data, url)
 
-    def post_patch_panel_module_models(self, data):
-        url = self.base_url + '/api/1.0/patch_panel_module_models/'
-        msg = '\r\nUploading patch panels modules data to %s ' % url
-        logger.info(msg)
-        logger.info(data)
-        # self.uploader(data, url)
+    # def post_patch_panel_module_models(self, data):
+    #     url = self.base_url + '/api/1.0/patch_panel_module_models/'
+    #     logger.info('Uploading patch panels modules data to {}}'.format(url))
+    #     self.uploader(data, url)
 
-    def get_pdu_models(self):
-        url = self.base_url + '/api/1.0/pdu_models/'
-        msg = '\r\nFetching PDU models from %s ' % url
-        logger.info(msg)
-        # self.fetcher(url)
+    # def get_pdu_models(self):
+    #     url = self.base_url + '/api/1.0/pdu_models/'
+    #     logger.info('Fetching PDU models from {}'.format(url))
+    #     self.fetcher(url)
 
-    def get_racks(self):
-        url = self.base_url + '/api/1.0/racks/'
-        msg = '\r\nFetching racks from %s ' % url
-        logger.info(msg)
-        # data = self.fetcher(url)
-        return data
+    # def get_racks(self):
+    #     url = self.base_url + '/api/1.0/racks/'
+    #     logger.info('Fetching racks from {}'.format(url))
+    #     ata = self.fetcher(url)
+    #     return data
 
-    def get_devices(self):
-        url = self.base_url + '/api/1.0/devices/'
-        msg = '\r\nFetching devices from %s ' % url
-        logger.info(msg)
-        # data = self.fetcher(url)
-        return data
+    # def get_devices(self):
+    #     url = self.base_url + '/api/1.0/devices/'
+    #     logger.info('Fetching devices from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
-    def get_buildings(self):
-        url = self.base_url + '/api/dcim/sites/'
-        msg = '\r\nFetching buildings from %s ' % url
-        logger.info(msg)
-        # data = self.fetcher(url)
-        return data
+    # def get_buildings(self):
+    #     url = self.base_url + '/api/dcim/sites/'
+    #     logger.info('Fetching buildings from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
-    def get_rooms(self):
-        url = self.base_url + '/api/1.0/rooms/'
-        msg = '\r\nFetching rooms from %s ' % url
-        logger.info(msg)
-        # data = self.fetcher(url)
-        return data
+    # def get_rooms(self):
+    #     url = self.base_url + '/api/1.0/rooms/'
+    #     logger.info('Fetching rooms from {}'.format(url))
+    #     data = self.fetcher(url)
+    #     return data
 
 
 class DB(object):
@@ -243,8 +223,13 @@ class DB(object):
         Connection to RT database
         :return:
         """
-        self.con = sql.connect(host=conf.DB_IP, port=int(conf.DB_PORT),
-                               db=conf.DB_NAME, user=conf.DB_USER, passwd=conf.DB_PWD)
+        self.con = pymysql.connect(
+            host=config['MySQL']['DB_IP'], 
+            port=int(config['MySQL']['DB_PORT']),
+            db=config['MySQL']['DB_NAME'], 
+            user=config['MySQL']['DB_USER'], 
+            passwd=config['MySQL']['DB_PWD']
+        )
 
     @staticmethod
     def convert_ip(ip_raw):
@@ -269,7 +254,7 @@ class DB(object):
             q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != ""'
             cur.execute(q)
             ips = cur.fetchall()
-            if conf.DEBUG:
+            if config['Log']['DEBUG']:
                 msg = ('IPs', str(ips))
                 logger.debug(msg)
 
@@ -286,7 +271,7 @@ class DB(object):
             net.update({'tag': name})
             msg = 'Label: %s' % name
             logger.info(msg)
-            rest.post_ip(net)
+            # rest.post_ip(net)
 
     def get_subnets(self):
         """
@@ -301,7 +286,7 @@ class DB(object):
             q = "SELECT * FROM IPv4Network"
             cur.execute(q)
             subnets = cur.fetchall()
-            if conf.DEBUG:
+            if config['Log']['DEBUG']:
                 msg = ('Subnets', str(subnets))
                 logger.debug(msg)
         for line in subnets:
@@ -310,16 +295,17 @@ class DB(object):
             subs.update({'network': subnet})
             subs.update({'mask_bits': str(mask)})
             subs.update({'name': name})
-            rest.post_subnet(subs)
+            # rest.post_subnet(subs)        
 
     def get_infrastructure(self):
         """
         Get locations, rows and racks from RT, convert them to buildings and rooms and send to uploader.
         :return:
         """
-        buildings_map = {}
+        sites_map = {}
         rooms_map = {}
         rows_map = {}
+        rackgroups = []
         racks = []
 
         if not self.con:
@@ -328,94 +314,116 @@ class DB(object):
         # ============ BUILDINGS AND ROOMS ============
         with self.con:
             cur = self.con.cursor()
-            q = """select id,name, parent_id, parent_name from Location"""
+            q = """SELECT id, name, parent_id, parent_name FROM Location"""
             cur.execute(q)
             raw = cur.fetchall()
-        if conf.CHILD_AS_BUILDING:
+
             for rec in raw:
-                building_id, building_name, parent_id, parent_name = rec
-                buildings_map.update({building_id: building_name})
-        else:
-            for rec in raw:
-                building_id, building_name, parent_id, parent_name = rec
+                location_id, location_name, parent_id, parent_name = rec
                 if not parent_name:
-                    buildings_map.update({building_id: building_name})
+                    sites_map.update({location_id: location_name})
                 else:
-                    rooms_map.update({building_name: parent_name})
+                    rooms_map.update({location_name: parent_name})
 
-        # upload buildings
-        if conf.DEBUG:
-            msg = ('Buildings', str(buildings_map))
-            logger.debug(msg)
-        bdata = {}
-        for bid, building in list(buildings_map.items()):
-            bdata.update({'name': building, 'slug': slugify(building)})
-            rest.post_building(json.dumps(bdata))
+        print("Sites:")
+        pp.pprint(sites_map)
+        
+        pp.pprint(rooms_map)
 
-        # upload rooms
-        buildings = json.loads((rest.get_buildings()))['buildings']
-        if not conf.CHILD_AS_BUILDING:
-            for room, parent in list(rooms_map.items()):
-                roomdata = {}
-                roomdata.update({'name': room})
-                roomdata.update({'building': parent})
-                rest.post_room(roomdata)
+        print("Rack Groups:")
+        for room, parent in list(rooms_map.items()):
+            if parent in sites_map.values():
+                if room in rooms_map.values():
+                    continue
 
-        # ============ ROWS AND RACKS ============
-        with self.con:
-            cur = self.con.cursor()
-            q = """SELECT id, name ,height, row_id, row_name, location_id, location_name from Rack;"""
-            cur.execute(q)
-            raw = cur.fetchall()
+            rackgroup = {}
 
-        for rec in raw:
-            rack_id, rack_name, height, row_id, row_name, location_id, location_name = rec
-
-            rows_map.update({row_name: location_name})
-
-            # prepare rack data. We will upload it a little bit later
-            rack = {}
-            rack.update({'name': rack_name})
-            rack.update({'size': height})
-            rack.update({'rt_id': rack_id})  # we will remove this later
-            if conf.ROW_AS_ROOM:
-                rack.update({'room': row_name})
-                rack.update({'building': location_name})
+            if room not in sites_map.values():
+                name = parent + "-" + room
+                rackgroup.update({'site': rooms_map[parent]})
             else:
-                row_name = row_name[:10]  # there is a 10char limit for row name
-                rack.update({'row': row_name})
-                if location_name in rooms_map:
-                    rack.update({'room': location_name})
-                    building_name = rooms_map[location_name]
-                    rack.update({'building': building_name})
-                else:
-                    rack.update({'building': location_name})
-            racks.append(rack)
+                name = room
+                rackgroup.update({'site': parent})
 
-        # upload rows as rooms
-        if conf.ROW_AS_ROOM:
-            if conf.DEBUG:
-                msg = ('Rooms', str(rows_map))
-                logger.debug(msg)
-            for room, parent in list(rows_map.items()):
-                roomdata = {}
-                roomdata.update({'name': room})
-                roomdata.update({'building': parent})
-                rest.post_room(roomdata)
+            rackgroup.update({'name': name})
 
-        # upload racks
-        if conf.DEBUG:
-            msg = ('Racks', str(racks))
-            logger.debug(msg)
-        for rack in racks:
-            rt_rack_id = rack['rt_id']
-            del rack['rt_id']
-            response = rest.post_rack(rack)
-            d42_rack_id = response['msg'][1]
+            rackgroups.append(rackgroup)
 
-            self.rack_id_map.update({rt_rack_id: d42_rack_id})
+        for site_id, site_name in list(sites_map.items()):
+            if site_name not in rooms_map.values():
+                rackgroup = {}
+                rackgroup.update({'site': site_name})
+                rackgroup.update({'name': site_name})
 
-        self.all_ports = self.get_ports()
+                rackgroups.append(rackgroup)
+
+        pp.pprint(rackgroups)
+
+        
+        # upload rooms
+        # buildings = json.loads((rest.get_buildings()))['buildings']
+        
+        #     for room, parent in list(rooms_map.items()):
+        #         roomdata = {}
+        #         roomdata.update({'name': room})
+        #         roomdata.update({'building': parent})
+        #         rest.post_room(roomdata)
+
+        # # ============ ROWS AND RACKS ============
+        # with self.con:
+        #     cur = self.con.cursor()
+        #     q = """SELECT id, name ,height, row_id, row_name, location_id, location_name from Rack;"""
+        #     cur.execute(q)
+        #     raw = cur.fetchall()
+
+        # for rec in raw:
+        #     rack_id, rack_name, height, row_id, row_name, location_id, location_name = rec
+
+        #     rows_map.update({row_name: location_name})
+
+        #     # prepare rack data. We will upload it a little bit later
+        #     rack = {}
+        #     rack.update({'name': rack_name})
+        #     rack.update({'size': height})
+        #     rack.update({'rt_id': rack_id})  # we will remove this later
+        #     if config['Misc']['ROW_AS_ROOM']:
+        #         rack.update({'room': row_name})
+        #         rack.update({'building': location_name})
+        #     else:
+        #         row_name = row_name[:10]  # there is a 10char limit for row name
+        #         rack.update({'row': row_name})
+        #         if location_name in rooms_map:
+        #             rack.update({'room': location_name})
+        #             building_name = rooms_map[location_name]
+        #             rack.update({'building': building_name})
+        #         else:
+        #             rack.update({'building': location_name})
+        #     racks.append(rack)
+
+        # # upload rows as rooms
+        # if config['Misc']['ROW_AS_ROOM']:
+        #     if config['Log']['DEBUG']:
+        #         msg = ('Rooms', str(rows_map))
+        #         logger.debug(msg)
+        #     for room, parent in list(rows_map.items()):
+        #         roomdata = {}
+        #         roomdata.update({'name': room})
+        #         roomdata.update({'building': parent})
+        #         rest.post_room(roomdata)
+
+        # # upload racks
+        # if config['Log']['DEBUG']:
+        #     msg = ('Racks', str(racks))
+        #     logger.debug(msg)
+        # for rack in racks:
+        #     rt_rack_id = rack['rt_id']
+        #     del rack['rt_id']
+        #     response = rest.post_rack(rack)
+        #     d42_rack_id = response['msg'][1]
+
+        #     self.rack_id_map.update({rt_rack_id: d42_rack_id})
+
+        # self.all_ports = self.get_ports()
 
     def get_hardware(self):
         """
@@ -439,7 +447,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Hardware', str(data))
             logger.debug(msg)
 
@@ -487,7 +495,7 @@ class DB(object):
                 hwddata.update({'depth': depth})
                 hwddata.update({'name': model[:48]})
                 hwddata.update({'manufacturer': vendor})
-                rest.post_hardware(hwddata)
+                # rest.post_hardware(hwddata)
 
     def get_hardware_size(self, data_id):
         """
@@ -575,7 +583,7 @@ class DB(object):
             hwddata.update({'depth': depth})
         if name:
             hwddata.update({'name': name[:48]})
-            rest.post_hardware(hwddata)
+            # rest.post_hardware(hwddata)
 
     def get_vmhosts(self):
         if not self.con:
@@ -596,7 +604,7 @@ class DB(object):
             self.vm_hosts.update({host_id: name})
             dev.update({'name': name})
             dev.update({'is_it_virtual_host': 'yes'})
-            rest.post_device(dev)
+            # rest.post_device(dev)
 
     def get_chassis(self):
         if not self.con:
@@ -617,7 +625,7 @@ class DB(object):
             self.chassis.update({host_id: name})
             dev.update({'name': name})
             dev.update({'is_it_blade_host': 'yes'})
-            rest.post_device(dev)
+            # rest.post_device(dev)
 
     def get_container_map(self):
         """
@@ -812,7 +820,7 @@ class DB(object):
                                 device_name = self.get_device_by_port(get_links[0])
                                 switchport_data.update({'device': device_name})
                                 switchport_data.update({'remote_device': device_name})
-                                switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                                # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
                                 rest.post_switchport(switchport_data)
 
@@ -867,11 +875,11 @@ class DB(object):
                     IPv4Allocation.ip,IPv4Allocation.name,
                     Object.name as hostname
                     FROM %s.`IPv4Allocation`
-                    LEFT JOIN Object ON Object.id = object_id""" % conf.DB_NAME
+                    LEFT JOIN Object ON Object.id = object_id""" % config['MySQL']['DB_NAME']
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('Device to IP', str(data))
             logger.debug(msg)
 
@@ -904,7 +912,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('PDUs', str(data))
             logger.debug(msg)
 
@@ -989,12 +997,12 @@ class DB(object):
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
                         \n\tWrong rack id map value: %s' % (name, pdu_id, str(rack_id))
                         logger.info(msg)
-                    if conf.PDU_MOUNT.lower() in ('left', 'right', 'above', 'below'):
-                        where = conf.PDU_MOUNT.lower()
+                    if config['Misc']['PDU_MOUNT'].lower() in ('left', 'right', 'above', 'below'):
+                        where = config['Misc']['PDU_MOUNT'].lower()
                     else:
                         where = 'left'
-                    if conf.PDU_ORIENTATION.lower() in ('front', 'back'):
-                        mount = conf.PDU_ORIENTATION.lower()
+                    if config['Misc']['PDU_ORIENTATION'].lower() in ('front', 'back'):
+                        mount = config['Misc']['PDU_ORIENTATION'].lower()
                     else:
                         mount = 'front'
                     rdata = {}
@@ -1028,7 +1036,7 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if conf.DEBUG:
+        if config['Log']['DEBUG']:
             msg = ('PDUs', str(data))
             logger.debug(msg)
 
@@ -1170,35 +1178,58 @@ class DB(object):
             return data[0]
 
 
-def main():
-    db = DB()
-    # db.get_subnets()
-    # db.get_ips()
-    db.get_infrastructure()
-    db.get_hardware()
-    db.get_container_map()
-    db.get_chassis()
-    db.get_vmhosts()
-    db.get_device_to_ip()
-    db.get_pdus()
-    db.get_patch_panels()
-    db.get_devices()
-
-
 if __name__ == '__main__':
+    # Import config
+    configfile = 'conf'
+    config = configparser.ConfigParser()
+    config.read(configfile)
+    
+    # Initialize Data pretty printer
+    pp = pprint.PrettyPrinter(indent=4)
+
+    # Initialize logging platform
     logger = logging.getLogger('racktables2netbox')
     logger.setLevel(logging.DEBUG)
-    fh = logging.FileHandler(conf.LOGFILE)
+
+    # Log to file
+    fh = logging.FileHandler(config['Log']['LOGFILE'])
     fh.setLevel(logging.DEBUG)
+
+    # Log to stdout
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.DEBUG)
+
+    # Format log output
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
+
+    # Attach handlers to logger
     logger.addHandler(fh)
     logger.addHandler(ch)
 
-    rest = REST()
-    main()
-    print ('\n[!] Done!')
-    sys.exit()
+    netbox = pynetbox.api(config['NetBox']['NETBOX_HOST'], token=config['NetBox']['NETBOX_TOKEN'])
+
+    tenant_groups = netbox.tenancy.tenant_groups.all()
+
+    print()
+    
+    
+    rest = REST()    
+    racktables = DB()
+    # racktables.get_subnets()
+    # racktables.get_ips()
+    racktables.get_infrastructure()
+    # racktables.get_hardware()
+    # racktables.get_container_map()
+    # racktables.get_chassis()
+    # racktables.get_vmhosts()
+    # racktables.get_device_to_ip()
+    # racktables.get_pdus()
+    # racktables.get_patch_panels()
+    # racktables.get_devices()
+
+    migrator = Migrator()
+
+    logger.info('[!] Done!')
+    # sys.exit()

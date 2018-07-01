@@ -7,43 +7,40 @@ import json
 import requests
 import urllib3
 import logging
-from pprint import pprint
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Load config file into variable
 conf = imp.load_source('conf', 'conf')
+api_url_base = "{}/api".format(conf.NETBOX_HOST)
 
-api_token = conf.NETBOX_TOKEN
-api_url_base = conf.NETBOX_URL
+def api_request(method, url):
+    # Log which request we're trying to do
+    logger.debug("HTTP Request: {} - {}".format(method, url))
+    
+    # Prepare request
+    request = requests.Request(method, url)
+    prepared_request = s.prepare_request(request)
+    
+    response = s.send(prepared_request)
 
-# Define REST Headers
-headers = {'Content-Type': 'application/json',
-           'Authorization': 'Token {0}'.format(api_token)}
+    # Log HTTP Response
+    logger.debug("HTTP Response: {!s} - {}".format(response.status_code, response.reason))
+    
+    return response
 
 def delete_sites():
     logger.info('Deleting Sites')
     # Get all sites
-    api_url = '{0}/api/dcim/sites'.format(api_url_base)
+    api_url = '{}/dcim/sites'.format(api_url_base)
 
-    method = 'GET'
-    request = requests.Request(method, api_url, headers=headers)
-    response = s.send(request.prepare(), verify=False)
-    
-    logger.info(method + " - " + api_url)
-    logger.debug(str(response.status_code) + " - " + response.reason)
-
+    response = api_request('GET', api_url)
     sites = json.loads(response.content.decode('utf-8'))
 
     # Delete every site you got
     for site in sites['results']:
-        url = '{0}/{1}'.format(api_url, site['id'])
-        method = 'DELETE'
-        request = requests.Request(method, url, headers=headers)
-        response = s.send(request.prepare(), verify=False)
-
-        logger.info(method + " - " + url)
-        logger.debug(str(response.status_code) + " - " + response.reason)
+        url = '{}/{}'.format(api_url, site['id'])
+        response = api_request('DELETE', url)
 
     return
 
@@ -73,7 +70,29 @@ if __name__ == '__main__':
     logger.addHandler(fh)
     logger.addHandler(ch)
 
+    # Create HTTP connection pool
     s = requests.Session()
+
+    # Disable SSL verification
+    s.verify = False
+
+    # Define REST Headers
+    headers = {'Content-Type': 'application/json', 
+        'Accept': 'application/json; indent=4',
+        'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+
+    s.headers.update(headers)
+
+    # try:
+    #     import http.client as http_client
+    # except ImportError:
+    #     # Python 2
+    #     import httplib as http_client
+    # http_client.HTTPConnection.debuglevel = 1
+
+    # requests_log = logging.getLogger("requests.packages.urllib3")
+    # requests_log.setLevel(logging.DEBUG)
+    # requests_log.propagate = True
 
     # Run the main function
     main()
