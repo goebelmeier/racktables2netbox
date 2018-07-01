@@ -1,10 +1,10 @@
 # ====== MySQL Source (Racktables) ====== #
 [MySQL]
-DB_IP   = racktables02.eventim.net
+DB_IP   = racktables.example.net
 DB_PORT = 3306
 DB_NAME = racktables
 DB_USER = netbox
-DB_PWD  = <SEE KEEPASS>
+DB_PWD  = PASSWORD
 # ====== Log settings ==================== #
 [Log]
 LOGFILE   = migration.log
@@ -12,16 +12,10 @@ DEBUG_LOG = debug.log
 CLEAN_LOG = clean_netbox.log
 STDOUT    = True  # print to STDOUT
 DEBUG     = True  # write debug log
-# ====== Device42 upload settings ========= #
-# [Device42]
-# D42_USER = device42 user
-# D42_PWD  = device42 password
-# D42_URL  = https:// device42 server IP address
 # ====== NetBox upload settings ========= #
 [NetBox]
-NETBOX_TOKEN = <CREATE INSIDE NETBOX>
-NETBOX_HOST  = https://netbox.eventim.net
-NETBOX_URL   = https://netbox.eventim.net/api
+NETBOX_TOKEN = NETBOX_API_TOKEN
+NETBOX_HOST  = https://netbox.example.net
 # ====== Other settings ========= #
 [Misc]
 CHILD_AS_BUILDING = True  # use RTs sub-location as Device42 building. If False, use it as a Device42 room.

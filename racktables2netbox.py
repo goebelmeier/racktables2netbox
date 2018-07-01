@@ -22,6 +22,7 @@ import json
 import logging
 import socket
 import struct
+import pathlib
 import pprint
 import pymysql as sql
 import pynetbox
@@ -53,8 +54,7 @@ class Migrator:
         netbox.dcim.regions.create()
 
         if not parent:
-            pass
-
+            pass 
         pass
 
     def create_site(self, name, region, status, physical_address, facility, shipping_address, contact_phone, contact_email, contact_name, tenant, time_zone):
@@ -66,7 +66,7 @@ class Migrator:
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class REST(object):
     def __init__(self):
-        self.base_url = config['NetBox']['NETBOX_URL']
+        self.base_url = "{}/api".format(config['NetBox']['NETBOX_HOST'])
 
         # Create HTTP connection pool
         self.s = requests.Session()
@@ -1196,9 +1196,10 @@ class DB(object):
 
 if __name__ == '__main__':
     # Import config
+    configfile = 'conf'
     config = configparser.ConfigParser()
-    config.read('conf')
-
+    config.read(configfile)
+    
     # Initialize Data pretty printer
     pp = pprint.PrettyPrinter(indent=4)
 

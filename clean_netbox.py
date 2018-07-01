@@ -7,13 +7,12 @@ import json
 import requests
 import urllib3
 import logging
-from pprint import pprint
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Load config file into variable
 conf = imp.load_source('conf', 'conf')
-api_url_base = conf.NETBOX_URL
+api_url_base = "{}/api".format(conf.NETBOX_HOST)
 
 def api_request(method, url):
     # Log which request we're trying to do
