@@ -74,13 +74,10 @@ class REST(object):
         request = requests.Request(method, url, data = json.dumps(data))
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
-        logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason} - {r.text}")
+        logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+        r.raise_for_status()
 
-        try:
-            return r.json()
-        except Exception as e:
-            logger.exception('[*] Exception: {!s}'.format(e))
-            pass
+        return r.json()
 
     def fetcher(self, url):
         method = 'GET'
@@ -91,7 +88,8 @@ class REST(object):
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
 
-        logger.debug("HTTP Response: {status_code!s} - {reason} - {text}".format(**r))
+        logger.debug(f'HTTP Response: {r.status_code} - {r.reason}')
+        r.raise_for_status()
 
         return r.text
 
@@ -101,7 +99,7 @@ class REST(object):
         self.uploader(data, url)
 
     def post_ip(self, data):
-        url = self.base_url + '/ipam/ip-addresses/'
+        url = self.base_url + '/ipam/ip-addresses1/'
         logger.info('Posting IP data to {}'.format(url))
         self.uploader(data, url)
 
@@ -273,30 +271,8 @@ class DB(object):
             msg = 'Label: %s' % desc
             logger.info(msg)
 
-            net.update({'vrf': self.get_vrf(ip)})
-            logger.info(f'VRF is {self.get_vrf(ip)}')
             rest.post_ip(net)
-
-
-    def get_vrf(self, ip: str) -> int:
-        ''' Return VRF id by ip address '''
-        vpns = { 'ATS': 1, 'MGM': 2, 'ASUP': 3, 'ASUTP': 4, 'KKS': 5 }
-        
-        ats_net = re.compile(r"^10.23.")
-        kks_net = re.compile(r"^10.13.")
-        mgm_net = re.compile(r"^172.20.")
-
-        if ats_net.match(ip):
-            logger.debug('ATS')
-            return vpns.get('ATS')
-        elif kks_net.match(ip):
-            logger.debug('KKS')
-            return vpns.get('KKS')
-        elif mgm_net.match(ip):
-            logger.debug('MGM')
-            return vpns.get('MGM')
-        else:
-            return 0
+            logger.info('Post ip {ip}')
 
 
     def get_subnets(self):
