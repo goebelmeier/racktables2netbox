@@ -13,6 +13,7 @@ import slugify
 import socket
 import struct
 import urllib3
+import re
 
 class Migrator:
     def slugify(self, text):
@@ -70,17 +71,13 @@ class REST(object):
         
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
 
-        request = requests.Request(method, url, data = data)
+        request = requests.Request(method, url, data = json.dumps(data))
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
+        logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+        r.raise_for_status()
 
-        logger.debug("HTTP Response: {status_code!s} - {reason} - {text}".format(**r))
-
-        try:
-            return r.json()
-        except Exception as e:
-            logger.exception('[*] Exception: {!s}'.format(e))
-            pass
+        return r.json()
 
     def fetcher(self, url):
         method = 'GET'
@@ -91,19 +88,20 @@ class REST(object):
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
 
-        logger.debug("HTTP Response: {status_code!s} - {reason} - {text}".format(**r))
+        logger.debug(f'HTTP Response: {r.status_code} - {r.reason}')
+        r.raise_for_status()
 
         return r.text
 
-    # def post_subnet(self, data):
-    #     url = self.base_url + '/api/1.0/subnets/'
-    #     logger.info('Posting data to {}'.format(url))
-    #     self.uploader(data, url)
+    def post_subnet(self, data):
+        url = self.base_url + '/ipam/prefixes/'
+        logger.info('Posting data to {}'.format(url))
+        self.uploader(data, url)
 
-    # def post_ip(self, data):
-    #     url = self.base_url + '/api/ip/'
-    #     logger.info('Posting IP data to {}'.format(url))
-    #     self.uploader(data, url)
+    def post_ip(self, data):
+        url = self.base_url + '/ipam/ip-addresses1/'
+        logger.info('Posting IP data to {}'.format(url))
+        self.uploader(data, url)
 
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
@@ -251,7 +249,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != ""'
+            q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != "" or IPv4Address.comment != ""'
             cur.execute(q)
             ips = cur.fetchall()
             if config['Log']['DEBUG']:
@@ -264,14 +262,18 @@ class DB(object):
             ip = self.convert_ip(ip_raw)
             adrese.append(ip)
 
-            net.update({'ipaddress': ip})
+            net.update({'address': ip})
             msg = 'IP Address: %s' % ip
             logger.info(msg)
 
-            net.update({'tag': name})
-            msg = 'Label: %s' % name
+            desc = ' '.join([name, comment]).strip()
+            net.update({'description': desc})
+            msg = 'Label: %s' % desc
             logger.info(msg)
-            # rest.post_ip(net)
+
+            rest.post_ip(net)
+            logger.info('Post ip {ip}')
+
 
     def get_subnets(self):
         """
@@ -292,10 +294,11 @@ class DB(object):
         for line in subnets:
             sid, raw_sub, mask, name, x = line
             subnet = self.convert_ip(raw_sub)
-            subs.update({'network': subnet})
-            subs.update({'mask_bits': str(mask)})
-            subs.update({'name': name})
-            # rest.post_subnet(subs)        
+            subs.update({'prefix':'/'.join([subnet, str(mask)])})
+            subs.update({'status':'active'})
+            #subs.update({'mask_bits': str(mask)})
+            subs.update({'description':name})
+            rest.post_subnet(subs)        
 
     def get_infrastructure(self):
         """
@@ -1217,9 +1220,9 @@ if __name__ == '__main__':
     
     rest = REST()    
     racktables = DB()
-    # racktables.get_subnets()
-    # racktables.get_ips()
-    racktables.get_infrastructure()
+    #racktables.get_subnets()
+    racktables.get_ips()
+    #racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
