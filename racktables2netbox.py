@@ -99,7 +99,7 @@ class REST(object):
         self.uploader(data, url)
 
     def post_ip(self, data):
-        url = self.base_url + '/ipam/ip-addresses1/'
+        url = self.base_url + '/ipam/ip-addresses/'
         logger.info('Posting IP data to {}'.format(url))
         self.uploader(data, url)
 
