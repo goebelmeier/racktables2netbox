@@ -94,11 +94,12 @@ class REST(object):
             r.close()
         except:
             print("POST attempt failed")
-
-        if r:
-            return r.json
-        else:
+        try:
+            if r:
+                return_obj = r.json
+        except:
             return {}
+        return return_obj
 
     def fetcher(self, url):
         method = "GET"
