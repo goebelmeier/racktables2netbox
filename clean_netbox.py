@@ -35,9 +35,25 @@ def delete_sites():
     response = api_request("GET", api_url)
     sites = json.loads(response.content.decode("utf-8"))
 
-    # Delete every site you got
+    # Delete every site we got
     for site in sites["results"]:
         url = "{}/{}".format(api_url, site["id"])
+        response = api_request("DELETE", url)
+
+    return
+
+
+def delete_ips():
+    logger.info("Deleting ips")
+    # Get all sites
+    api_url = "{}/ipam/ip-addresses".format(api_url_base)
+
+    response = api_request("GET", api_url)
+    ips = json.loads(response.content.decode("utf-8"))
+
+    # Delete every ip we got
+    for ip in ips["results"]:
+        url = "{}/{}".format(api_url, ip["id"])
         response = api_request("DELETE", url)
 
     return
@@ -46,6 +62,7 @@ def delete_sites():
 def main():
     # We need to delete the items beginning from the most nested items to the top level items
     delete_sites()
+    delete_ips()
 
 
 if __name__ == "__main__":
@@ -58,9 +75,9 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read(configfile)
     api_url_base = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
-    
+
     # Log to file
-    fh = logging.FileHandler(config["CLEAN_LOG"])
+    fh = logging.FileHandler(config["Log"]["CLEAN_LOG"])
     fh.setLevel(logging.DEBUG)
 
     # Log to stdout
