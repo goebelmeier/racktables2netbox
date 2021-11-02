@@ -11,46 +11,50 @@ import logging
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Load config file into variable
-conf = imp.load_source('conf', 'conf')
+conf = imp.load_source("conf", "conf")
 api_url_base = "{}/api".format(conf.NETBOX_HOST)
+
 
 def api_request(method, url):
     # Log which request we're trying to do
     logger.debug("HTTP Request: {} - {}".format(method, url))
-    
+
     # Prepare request
     request = requests.Request(method, url)
     prepared_request = s.prepare_request(request)
-    
+
     response = s.send(prepared_request)
 
     # Log HTTP Response
     logger.debug("HTTP Response: {!s} - {}".format(response.status_code, response.reason))
-    
+
     return response
 
-def delete_sites():
-    logger.info('Deleting Sites')
-    # Get all sites
-    api_url = '{}/dcim/sites'.format(api_url_base)
 
-    response = api_request('GET', api_url)
-    sites = json.loads(response.content.decode('utf-8'))
+def delete_sites():
+    logger.info("Deleting Sites")
+    # Get all sites
+    api_url = "{}/dcim/sites".format(api_url_base)
+
+    response = api_request("GET", api_url)
+    sites = json.loads(response.content.decode("utf-8"))
 
     # Delete every site you got
-    for site in sites['results']:
-        url = '{}/{}'.format(api_url, site['id'])
-        response = api_request('DELETE', url)
+    for site in sites["results"]:
+        url = "{}/{}".format(api_url, site["id"])
+        response = api_request("DELETE", url)
 
     return
+
 
 def main():
     # We need to delete the items beginning from the most nested items to the top level items
     delete_sites()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Initialize logging platform
-    logger = logging.getLogger('clean_netbox')
+    logger = logging.getLogger("clean_netbox")
     logger.setLevel(logging.DEBUG)
 
     # Log to file
@@ -62,7 +66,7 @@ if __name__ == '__main__':
     ch.setLevel(logging.DEBUG)
 
     # Format log output
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -77,9 +81,11 @@ if __name__ == '__main__':
     s.verify = False
 
     # Define REST Headers
-    headers = {'Content-Type': 'application/json', 
-        'Accept': 'application/json; indent=4',
-        'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json; indent=4",
+        "Authorization": "Token {0}".format(conf.NETBOX_TOKEN),
+    }
 
     s.headers.update(headers)
 
@@ -96,5 +102,5 @@ if __name__ == '__main__':
 
     # Run the main function
     main()
-    logger.info('[!] Done!')
+    logger.info("[!] Done!")
     sys.exit()

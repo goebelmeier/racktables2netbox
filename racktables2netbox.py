@@ -15,6 +15,7 @@ import struct
 import urllib3
 import re
 
+
 class Migrator:
     def slugify(self, text):
         return slugify.slugify(text, max_length=50)
@@ -25,33 +26,43 @@ class Migrator:
     def create_tenant(self, name, tenant_group=None):
         logger.info("Creating tenant {}").format(name)
 
-        tenant = {
-            'name': name,
-            'slug': self.slugify(name)
-        }
+        tenant = {"name": name, "slug": self.slugify(name)}
 
         if tenant_group:
             tenant["tenant_group"] = netbox.tenancy.tenant_groups.all()
-        
+
         return netbox.tenancy.tenants.create(tenant)
 
     def create_region(self, name, parent=None):
         netbox.dcim.regions.create()
 
         if not parent:
-            pass 
+            pass
         pass
 
-    def create_site(self, name, region, status, physical_address, facility, shipping_address, contact_phone, contact_email, contact_name, tenant, time_zone):
+    def create_site(
+        self,
+        name,
+        region,
+        status,
+        physical_address,
+        facility,
+        shipping_address,
+        contact_phone,
+        contact_email,
+        contact_name,
+        tenant,
+        time_zone,
+    ):
         slug = self.slugify(name)
-        pass    
+        pass
 
 
 # Re-Enabled SSL verification
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class REST(object):
     def __init__(self):
-        self.base_url = "{}/api".format(config['NetBox']['NETBOX_HOST'])
+        self.base_url = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
 
         # Create HTTP connection pool
         self.s = requests.Session()
@@ -60,18 +71,20 @@ class REST(object):
         self.s.verify = True
 
         # Define REST Headers
-        headers = {'Content-Type': 'application/json', 
-            'Accept': 'application/json; indent=4',
-            'Authorization': 'Token {0}'.format(config['NetBox']['NETBOX_TOKEN'])}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json; indent=4",
+            "Authorization": "Token {0}".format(config["NetBox"]["NETBOX_TOKEN"]),
+        }
 
         self.s.headers.update(headers)
 
     def uploader(self, data, url):
-        method = 'POST'
-        
+        method = "POST"
+
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
 
-        request = requests.Request(method, url, data = json.dumps(data))
+        request = requests.Request(method, url, data=json.dumps(data))
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
         logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
@@ -80,7 +93,7 @@ class REST(object):
         return r.json()
 
     def fetcher(self, url):
-        method = 'GET'
+        method = "GET"
 
         logger.debug("HTTP Request: {} - {}".format(method, url))
 
@@ -88,19 +101,19 @@ class REST(object):
         prepared_request = self.s.prepare_request(request)
         r = self.s.send(prepared_request)
 
-        logger.debug(f'HTTP Response: {r.status_code} - {r.reason}')
+        logger.debug(f"HTTP Response: {r.status_code} - {r.reason}")
         r.raise_for_status()
 
         return r.text
 
     def post_subnet(self, data):
-        url = self.base_url + '/ipam/prefixes/'
-        logger.info('Posting data to {}'.format(url))
+        url = self.base_url + "/ipam/prefixes/"
+        logger.info("Posting data to {}".format(url))
         self.uploader(data, url)
 
     def post_ip(self, data):
-        url = self.base_url + '/ipam/ip-addresses/'
-        logger.info('Posting IP data to {}'.format(url))
+        url = self.base_url + "/ipam/ip-addresses/"
+        logger.info("Posting IP data to {}".format(url))
         self.uploader(data, url)
 
     # def post_device(self, data):
@@ -152,8 +165,8 @@ class REST(object):
     #     self.uploader(data, url)
 
     def post_building(self, data):
-        url = self.base_url + '/dcim/sites/'
-        logger.info('Uploading building data to {}'.format(url))
+        url = self.base_url + "/dcim/sites/"
+        logger.info("Uploading building data to {}".format(url))
         self.uploader(data, url)
 
     # def post_switchport(self, data):
@@ -222,11 +235,11 @@ class DB(object):
         :return:
         """
         self.con = pymysql.connect(
-            host=config['MySQL']['DB_IP'], 
-            port=int(config['MySQL']['DB_PORT']),
-            db=config['MySQL']['DB_NAME'], 
-            user=config['MySQL']['DB_USER'], 
-            passwd=config['MySQL']['DB_PWD']
+            host=config["MySQL"]["DB_IP"],
+            port=int(config["MySQL"]["DB_PORT"]),
+            db=config["MySQL"]["DB_NAME"],
+            user=config["MySQL"]["DB_USER"],
+            passwd=config["MySQL"]["DB_PWD"],
         )
 
     @staticmethod
@@ -236,7 +249,7 @@ class DB(object):
         :param ip_raw:
         :return:
         """
-        ip = socket.inet_ntoa(struct.pack('!I', ip_raw))
+        ip = socket.inet_ntoa(struct.pack("!I", ip_raw))
         return ip
 
     def get_ips(self):
@@ -252,8 +265,8 @@ class DB(object):
             q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != "" or IPv4Address.comment != ""'
             cur.execute(q)
             ips = cur.fetchall()
-            if config['Log']['DEBUG']:
-                msg = ('IPs', str(ips))
+            if config["Log"]["DEBUG"]:
+                msg = ("IPs", str(ips))
                 logger.debug(msg)
 
         for line in ips:
@@ -262,18 +275,17 @@ class DB(object):
             ip = self.convert_ip(ip_raw)
             adrese.append(ip)
 
-            net.update({'address': ip})
-            msg = 'IP Address: %s' % ip
+            net.update({"address": ip})
+            msg = "IP Address: %s" % ip
             logger.info(msg)
 
-            desc = ' '.join([name, comment]).strip()
-            net.update({'description': desc})
-            msg = 'Label: %s' % desc
+            desc = " ".join([name, comment]).strip()
+            net.update({"description": desc})
+            msg = "Label: %s" % desc
             logger.info(msg)
 
             rest.post_ip(net)
-            logger.info('Post ip {ip}')
-
+            logger.info("Post ip {ip}")
 
     def get_subnets(self):
         """
@@ -288,17 +300,17 @@ class DB(object):
             q = "SELECT * FROM IPv4Network"
             cur.execute(q)
             subnets = cur.fetchall()
-            if config['Log']['DEBUG']:
-                msg = ('Subnets', str(subnets))
+            if config["Log"]["DEBUG"]:
+                msg = ("Subnets", str(subnets))
                 logger.debug(msg)
         for line in subnets:
             sid, raw_sub, mask, name, x = line
             subnet = self.convert_ip(raw_sub)
-            subs.update({'prefix':'/'.join([subnet, str(mask)])})
-            subs.update({'status':'active'})
-            #subs.update({'mask_bits': str(mask)})
-            subs.update({'description':name})
-            rest.post_subnet(subs)        
+            subs.update({"prefix": "/".join([subnet, str(mask)])})
+            subs.update({"status": "active"})
+            # subs.update({'mask_bits': str(mask)})
+            subs.update({"description": name})
+            rest.post_subnet(subs)
 
     def get_infrastructure(self):
         """
@@ -330,7 +342,7 @@ class DB(object):
 
         print("Sites:")
         pp.pprint(sites_map)
-        
+
         pp.pprint(rooms_map)
 
         print("Rack Groups:")
@@ -343,29 +355,28 @@ class DB(object):
 
             if room not in sites_map.values():
                 name = parent + "-" + room
-                rackgroup.update({'site': rooms_map[parent]})
+                rackgroup.update({"site": rooms_map[parent]})
             else:
                 name = room
-                rackgroup.update({'site': parent})
+                rackgroup.update({"site": parent})
 
-            rackgroup.update({'name': name})
+            rackgroup.update({"name": name})
 
             rackgroups.append(rackgroup)
 
         for site_id, site_name in list(sites_map.items()):
             if site_name not in rooms_map.values():
                 rackgroup = {}
-                rackgroup.update({'site': site_name})
-                rackgroup.update({'name': site_name})
+                rackgroup.update({"site": site_name})
+                rackgroup.update({"name": site_name})
 
                 rackgroups.append(rackgroup)
 
         pp.pprint(rackgroups)
 
-        
         # upload rooms
         # buildings = json.loads((rest.get_buildings()))['buildings']
-        
+
         #     for room, parent in list(rooms_map.items()):
         #         roomdata = {}
         #         roomdata.update({'name': room})
@@ -450,8 +461,8 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if config['Log']['DEBUG']:
-            msg = ('Hardware', str(data))
+        if config["Log"]["DEBUG"]:
+            msg = ("Hardware", str(data))
             logger.debug(msg)
 
         # create map device_id:height
@@ -477,12 +488,12 @@ class DB(object):
             line = [0 if not x else x for x in line]
             data_id, description, name, asset, dtype = line
 
-            if '%GPASS%' in dtype:
+            if "%GPASS%" in dtype:
                 vendor, model = dtype.split("%GPASS%")
             elif len(dtype.split()) > 1:
                 venmod = dtype.split()
                 vendor = venmod[0]
-                model = ' '.join(venmod[1:])
+                model = " ".join(venmod[1:])
             else:
                 vendor = dtype
                 model = dtype
@@ -492,12 +503,12 @@ class DB(object):
                 floor, height, depth, mount = size
                 # patching height
                 height = hwsize_map[data_id]
-                hwddata.update({'notes': description})
-                hwddata.update({'type': 1})
-                hwddata.update({'size': height})
-                hwddata.update({'depth': depth})
-                hwddata.update({'name': model[:48]})
-                hwddata.update({'manufacturer': vendor})
+                hwddata.update({"notes": description})
+                hwddata.update({"type": 1})
+                hwddata.update({"size": height})
+                hwddata.update({"depth": depth})
+                hwddata.update({"name": model[:48]})
+                hwddata.update({"manufacturer": vendor})
                 # rest.post_hardware(hwddata)
 
     def get_hardware_size(self, data_id):
@@ -524,7 +535,7 @@ class DB(object):
             rear = 0
             floor = 0
             depth = 1  # 1 for full depth (default) and 2 for half depth
-            mount = 'front'  # can be [front | rear]
+            mount = "front"  # can be [front | rear]
             i = 1
 
             for line in data:
@@ -536,11 +547,11 @@ class DB(object):
                     if int(flr) < floor:
                         floor = int(flr) - 1
                 i += 1
-                if tag == 'front':
+                if tag == "front":
                     front += 1
-                elif tag == 'interior':
+                elif tag == "interior":
                     interior += 1
-                elif tag == 'rear':
+                elif tag == "rear":
                     rear += 1
 
             if front and interior and rear:  # full depth
@@ -555,7 +566,7 @@ class DB(object):
             elif interior and rear and not front:  # half depth,  rear mounted
                 height = rear
                 depth = 2
-                mount = 'rear'
+                mount = "rear"
                 return floor, height, depth, mount
 
             # for devices that look like less than half depth:
@@ -579,13 +590,13 @@ class DB(object):
         :rtype : object
         """
         hwddata = {}
-        hwddata.update({'type': 1})
+        hwddata.update({"type": 1})
         if height:
-            hwddata.update({'size': height})
+            hwddata.update({"size": height})
         if depth:
-            hwddata.update({'depth': depth})
+            hwddata.update({"depth": depth})
         if name:
-            hwddata.update({'name': name[:48]})
+            hwddata.update({"name": name[:48]})
             # rest.post_hardware(hwddata)
 
     def get_vmhosts(self):
@@ -605,8 +616,8 @@ class DB(object):
             except AttributeError:
                 continue
             self.vm_hosts.update({host_id: name})
-            dev.update({'name': name})
-            dev.update({'is_it_virtual_host': 'yes'})
+            dev.update({"name": name})
+            dev.update({"is_it_virtual_host": "yes"})
             # rest.post_device(dev)
 
     def get_chassis(self):
@@ -626,8 +637,8 @@ class DB(object):
             except AttributeError:
                 continue
             self.chassis.update({host_id: name})
-            dev.update({'name': name})
-            dev.update({'is_it_blade_host': 'yes'})
+            dev.update({"name": name})
+            dev.update({"is_it_blade_host": "yes"})
             # rest.post_device(dev)
 
     def get_container_map(self):
@@ -654,14 +665,15 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = 'SELECT id FROM Object'
+            q = "SELECT id FROM Object"
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
 
         with self.con:
             for dev_id in ids:
-                q = """Select
+                q = (
+                    """Select
                             Object.objtype_id,
                             Object.name as Description,
                             Object.label as Name,
@@ -684,7 +696,9 @@ class DB(object):
                             LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
                             LEFT JOIN Location ON Rack.location_id = Location.id
                             WHERE Object.id = %s
-                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275)""" % dev_id
+                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275)"""
+                    % dev_id
+                )
 
                 cur.execute(q)
                 data = cur.fetchall()
@@ -703,80 +717,92 @@ class DB(object):
         dev_type = 0
 
         for x in data:
-            dev_type, rdesc, rname, rasset, rattr_name, rtype, \
-            rcomment, rrack_id, rrack_name, rrow_name, \
-            rlocation_id, rlocation_name, rparent_name = x
+            (
+                dev_type,
+                rdesc,
+                rname,
+                rasset,
+                rattr_name,
+                rtype,
+                rcomment,
+                rrack_id,
+                rrack_name,
+                rrow_name,
+                rlocation_id,
+                rlocation_name,
+                rparent_name,
+            ) = x
 
             name = x[1]
             note = x[-7]
 
-            if 'Operating System' in x:
+            if "Operating System" in x:
                 opsys = x[-8]
-                if '%GSKIP%' in opsys:
-                    opsys = opsys.replace('%GSKIP%', ' ')
-                if '%GPASS%' in opsys:
-                    opsys = opsys.replace('%GPASS%', ' ')
-            if 'SW type' in x:
+                if "%GSKIP%" in opsys:
+                    opsys = opsys.replace("%GSKIP%", " ")
+                if "%GPASS%" in opsys:
+                    opsys = opsys.replace("%GPASS%", " ")
+            if "SW type" in x:
                 opsys = x[-8]
-                if '%GSKIP%' in opsys:
-                    opsys = opsys.replace('%GSKIP%', ' ')
-                if '%GPASS%' in opsys:
-                    opsys = opsys.replace('%GPASS%', ' ')
+                if "%GSKIP%" in opsys:
+                    opsys = opsys.replace("%GSKIP%", " ")
+                if "%GPASS%" in opsys:
+                    opsys = opsys.replace("%GPASS%", " ")
 
-            if 'Server Hardware' in x:
+            if "Server Hardware" in x:
                 hardware = x[-8]
-                if '%GSKIP%' in hardware:
-                    hardware = hardware.replace('%GSKIP%', ' ')
-                if '%GPASS%' in hardware:
-                    hardware = hardware.replace('%GPASS%', ' ')
-                if '\t' in hardware:
-                    hardware = hardware.replace('\t', ' ')
+                if "%GSKIP%" in hardware:
+                    hardware = hardware.replace("%GSKIP%", " ")
+                if "%GPASS%" in hardware:
+                    hardware = hardware.replace("%GPASS%", " ")
+                if "\t" in hardware:
+                    hardware = hardware.replace("\t", " ")
 
-            if 'HW type' in x:
+            if "HW type" in x:
                 hardware = x[-8]
-                if '%GSKIP%' in hardware:
-                    hardware = hardware.replace('%GSKIP%', ' ')
-                if '%GPASS%' in hardware:
-                    hardware = hardware.replace('%GPASS%', ' ')
-                if '\t' in hardware:
-                    hardware = hardware.replace('\t', ' ')
+                if "%GSKIP%" in hardware:
+                    hardware = hardware.replace("%GSKIP%", " ")
+                if "%GPASS%" in hardware:
+                    hardware = hardware.replace("%GPASS%", " ")
+                if "\t" in hardware:
+                    hardware = hardware.replace("\t", " ")
             if note:
-                note = note.replace('\n', ' ')
-                if '&lt;' in note:
-                    note = note.replace('&lt;', '')
-                if '&gt;' in note:
-                    note = note.replace('&gt;', '')
+                note = note.replace("\n", " ")
+                if "&lt;" in note:
+                    note = note.replace("&lt;", "")
+                if "&gt;" in note:
+                    note = note.replace("&gt;", "")
 
         if name:
             # set device data
-            devicedata.update({'name': name})
+            devicedata.update({"name": name})
             if hardware:
-                devicedata.update({'hardware': hardware[:48]})
+                devicedata.update({"hardware": hardware[:48]})
             if opsys:
-                devicedata.update({'os': opsys})
+                devicedata.update({"os": opsys})
             if note:
-                devicedata.update({'notes': note})
+                devicedata.update({"notes": note})
             if dev_id in self.vm_hosts:
-                devicedata.update({'is_it_virtual_host': 'yes'})
+                devicedata.update({"is_it_virtual_host": "yes"})
             if dev_type == 8:
-                devicedata.update({'is_it_switch': 'yes'})
+                devicedata.update({"is_it_switch": "yes"})
             elif dev_type == 1502:
-                devicedata.update({'is_it_blade_host': 'yes'})
+                devicedata.update({"is_it_blade_host": "yes"})
             elif dev_type == 4:
                 try:
                     blade_host_id = self.container_map[dev_id]
                     blade_host_name = self.chassis[blade_host_id]
-                    devicedata.update({'type': 'blade'})
-                    devicedata.update({'blade_host': blade_host_name})
+                    devicedata.update({"type": "blade"})
+                    devicedata.update({"blade_host": blade_host_name})
                 except KeyError:
                     pass
             elif dev_type == 1504:
-                devicedata.update({'type': 'virtual'})
-                devicedata.pop('hardware', None)
+                devicedata.update({"type": "virtual"})
+                devicedata.pop("hardware", None)
                 try:
                     vm_host_id = self.container_map[dev_id]
                     vm_host_name = self.vm_hosts[vm_host_id]
-                    devicedata.update({'virtual_host': vm_host_name})
+                    devicedata.update({"virtual_host": vm_host_name})
                 except KeyError:
                     pass
 
@@ -791,19 +817,19 @@ class DB(object):
                 if floor is not None:
                     floor = int(floor) + 1
                 else:
-                    floor = 'auto'
+                    floor = "auto"
                 if not hardware:
-                    hardware = 'generic' + str(height) + 'U'
+                    hardware = "generic" + str(height) + "U"
                 self.add_hardware(height, depth, hardware)
 
             # upload device
             if devicedata:
                 if hardware and dev_type != 1504:
-                    devicedata.update({'hardware': hardware[:48]})
+                    devicedata.update({"hardware": hardware[:48]})
 
                 # set default type for racked devices
-                if 'type' not in devicedata and d42_rack_id and floor:
-                    devicedata.update({'type': 'physical'})
+                if "type" not in devicedata and d42_rack_id and floor:
+                    devicedata.update({"type": "physical"})
 
                 rest.post_device(devicedata)
 
@@ -813,16 +839,16 @@ class DB(object):
                     if ports:
                         for item in ports:
                             switchport_data = {
-                                'port': item[0],
-                                'switch': name,
-                                'label': item[1]
+                                "port": item[0],
+                                "switch": name,
+                                "label": item[1],
                             }
 
                             get_links = self.get_links(item[3])
                             if get_links:
                                 device_name = self.get_device_by_port(get_links[0])
-                                switchport_data.update({'device': device_name})
-                                switchport_data.update({'remote_device': device_name})
+                                switchport_data.update({"device": device_name})
+                                switchport_data.update({"remote_device": device_name})
                                 # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
                                 rest.post_switchport(switchport_data)
@@ -830,13 +856,13 @@ class DB(object):
                                 # reverse connection
                                 device_name = self.get_device_by_port(get_links[0])
                                 switchport_data = {
-                                    'port': self.get_port_by_id(self.all_ports, get_links[0]),
-                                    'switch': device_name
+                                    "port": self.get_port_by_id(self.all_ports, get_links[0]),
+                                    "switch": device_name,
                                 }
 
-                                switchport_data.update({'device': name})
-                                switchport_data.update({'remote_device': name})
-                                switchport_data.update({'remote_port': item[0]})
+                                switchport_data.update({"device": name})
+                                switchport_data.update({"remote_device": name})
+                                switchport_data.update({"remote_port": item[0]})
 
                                 rest.post_switchport(switchport_data)
                             else:
@@ -844,28 +870,37 @@ class DB(object):
 
                 # if there is a device, we can try to mount it to the rack
                 if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
-                    device2rack.update({'device': name})
+                    device2rack.update({"device": name})
                     if hardware:
-                        device2rack.update({'hw_model': hardware[:48]})
-                    device2rack.update({'rack_id': d42_rack_id})
-                    device2rack.update({'start_at': floor})
+                        device2rack.update({"hw_model": hardware[:48]})
+                    device2rack.update({"rack_id": d42_rack_id})
+                    device2rack.update({"start_at": floor})
 
                     rest.post_device2rack(device2rack)
                 else:
                     if dev_type != 1504 and d42_rack_id is not None:
-                        msg = '\n-----------------------------------------------------------------------\
+                        msg = (
+                            '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
-                        \n\tFloor returned from "get_hardware_size" function was: %s' % (name, dev_id, str(floor))
+                        \n\tFloor returned from "get_hardware_size" function was: %s'
+                            % (name, dev_id, str(floor))
+                        )
                         logger.info(msg)
             else:
-                msg = '\n-----------------------------------------------------------------------\
-                \n[!] INFO: Device %s (RT id = %d) cannot be uploaded. Data was: %s' % (name, dev_id, str(devicedata))
+                msg = (
+                    "\n-----------------------------------------------------------------------\
+                \n[!] INFO: Device %s (RT id = %d) cannot be uploaded. Data was: %s"
+                    % (name, dev_id, str(devicedata))
+                )
                 logger.info(msg)
 
         else:
             # device has no name thus it cannot be migrated
-            msg = '\n-----------------------------------------------------------------------\
-            \n[!] INFO: Device with RT id=%d cannot be migrated because it has no name.' % dev_id
+            msg = (
+                "\n-----------------------------------------------------------------------\
+            \n[!] INFO: Device with RT id=%d cannot be migrated because it has no name."
+                % dev_id
+            )
             logger.info(msg)
 
     def get_device_to_ip(self):
@@ -874,26 +909,29 @@ class DB(object):
         with self.con:
             # get hardware items (except PDU's)
             cur = self.con.cursor()
-            q = """SELECT
+            q = (
+                """SELECT
                     IPv4Allocation.ip,IPv4Allocation.name,
                     Object.name as hostname
                     FROM %s.`IPv4Allocation`
-                    LEFT JOIN Object ON Object.id = object_id""" % config['MySQL']['DB_NAME']
+                    LEFT JOIN Object ON Object.id = object_id"""
+                % config["MySQL"]["DB_NAME"]
+            )
             cur.execute(q)
         data = cur.fetchall()
 
-        if config['Log']['DEBUG']:
-            msg = ('Device to IP', str(data))
+        if config["Log"]["DEBUG"]:
+            msg = ("Device to IP", str(data))
             logger.debug(msg)
 
         for line in data:
             devmap = {}
             rawip, nic_name, hostname = line
             ip = self.convert_ip(rawip)
-            devmap.update({'ipaddress': ip})
-            devmap.update({'device': hostname})
+            devmap.update({"ipaddress": ip})
+            devmap.update({"device": hostname})
             if nic_name:
-                devmap.update({'tag': nic_name})
+                devmap.update({"tag": nic_name})
             rest.post_ip(devmap)
 
     def get_pdus(self):
@@ -915,8 +953,8 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if config['Log']['DEBUG']:
-            msg = ('PDUs', str(data))
+        if config["Log"]["DEBUG"]:
+            msg = ("PDUs", str(data))
             logger.debug(msg)
 
         rack_mounted = []
@@ -927,22 +965,22 @@ class DB(object):
         for line in data:
             pdumodel = {}
             pdudata = {}
-            line = ['' if x is None else x for x in line]
+            line = ["" if x is None else x for x in line]
             pdu_id, name, asset, comment, pdu_type, position, rack_id = line
 
-            if '%GPASS%' in pdu_type:
-                pdu_type = pdu_type.replace('%GPASS%', ' ')
+            if "%GPASS%" in pdu_type:
+                pdu_type = pdu_type.replace("%GPASS%", " ")
 
             pdu_type = pdu_type[:64]
-            pdudata.update({'name': name})
-            pdudata.update({'notes': comment})
-            pdudata.update({'pdu_model': pdu_type})
-            pdumodel.update({'name': pdu_type})
-            pdumodel.update({'pdu_model': pdu_type})
+            pdudata.update({"name": name})
+            pdudata.update({"notes": comment})
+            pdudata.update({"pdu_model": pdu_type})
+            pdumodel.update({"name": pdu_type})
+            pdumodel.update({"pdu_model": pdu_type})
             if rack_id:
                 floor, height, depth, mount = self.get_hardware_size(pdu_id)
-                pdumodel.update({'size': height})
-                pdumodel.update({'depth': depth})
+                pdumodel.update({"size": height})
+                pdumodel.update({"depth": depth})
 
             # post pdu models
             if pdu_type and name not in pdumodels:
@@ -956,7 +994,7 @@ class DB(object):
             # post pdus
             if pdu_id not in pdumap:
                 response = rest.post_pdu(pdudata)
-                d42_pdu_id = response['msg'][1]
+                d42_pdu_id = response["msg"][1]
                 pdumap.update({pdu_id: d42_pdu_id})
 
             # mount to rack
@@ -967,27 +1005,33 @@ class DB(object):
                     if floor is not None:
                         floor = int(floor) + 1
                     else:
-                        floor = 'auto'
+                        floor = "auto"
                     try:
                         d42_rack_id = self.rack_id_map[rack_id]
                         if floor:
                             rdata = {}
-                            rdata.update({'pdu_id': pdumap[pdu_id]})
-                            rdata.update({'rack_id': d42_rack_id})
-                            rdata.update({'pdu_model': pdu_type})
-                            rdata.update({'where': 'mounted'})
-                            rdata.update({'start_at': floor})
-                            rdata.update({'orientation': mount})
+                            rdata.update({"pdu_id": pdumap[pdu_id]})
+                            rdata.update({"rack_id": d42_rack_id})
+                            rdata.update({"pdu_model": pdu_type})
+                            rdata.update({"where": "mounted"})
+                            rdata.update({"start_at": floor})
+                            rdata.update({"orientation": mount})
                             rest.post_pdu_to_rack(rdata, d42_rack_id)
                     except TypeError:
-                        msg = '\n-----------------------------------------------------------------------\
+                        msg = (
+                            '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tFloor returned from "get_hardware_size" function was: %s' % (name, pdu_id, str(floor))
+                        \n\tFloor returned from "get_hardware_size" function was: %s'
+                            % (name, pdu_id, str(floor))
+                        )
                         logger.info(msg)
                     except KeyError:
-                        msg = '\n-----------------------------------------------------------------------\
+                        msg = (
+                            '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id map value: %s' % (name, pdu_id, str(rack_id))
+                        \n\tWrong rack id map value: %s'
+                            % (name, pdu_id, str(rack_id))
+                        )
                         logger.info(msg)
             # It's Zero-U then
             else:
@@ -996,31 +1040,42 @@ class DB(object):
                     try:
                         d42_rack_id = self.rack_id_map[rack_id]
                     except KeyError:
-                        msg = '\n-----------------------------------------------------------------------\
+                        msg = (
+                            '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id map value: %s' % (name, pdu_id, str(rack_id))
+                        \n\tWrong rack id map value: %s'
+                            % (name, pdu_id, str(rack_id))
+                        )
                         logger.info(msg)
-                    if config['Misc']['PDU_MOUNT'].lower() in ('left', 'right', 'above', 'below'):
-                        where = config['Misc']['PDU_MOUNT'].lower()
+                    if config["Misc"]["PDU_MOUNT"].lower() in (
+                        "left",
+                        "right",
+                        "above",
+                        "below",
+                    ):
+                        where = config["Misc"]["PDU_MOUNT"].lower()
                     else:
-                        where = 'left'
-                    if config['Misc']['PDU_ORIENTATION'].lower() in ('front', 'back'):
-                        mount = config['Misc']['PDU_ORIENTATION'].lower()
+                        where = "left"
+                    if config["Misc"]["PDU_ORIENTATION"].lower() in ("front", "back"):
+                        mount = config["Misc"]["PDU_ORIENTATION"].lower()
                     else:
-                        mount = 'front'
+                        mount = "front"
                     rdata = {}
 
                     try:
-                        rdata.update({'pdu_id': pdumap[pdu_id]})
-                        rdata.update({'rack_id': d42_rack_id})
-                        rdata.update({'pdu_model': pdu_type})
-                        rdata.update({'where': where})
-                        rdata.update({'orientation': mount})
+                        rdata.update({"pdu_id": pdumap[pdu_id]})
+                        rdata.update({"rack_id": d42_rack_id})
+                        rdata.update({"pdu_model": pdu_type})
+                        rdata.update({"where": where})
+                        rdata.update({"orientation": mount})
                         rest.post_pdu_to_rack(rdata, d42_rack_id)
                     except UnboundLocalError:
-                        msg = '\n-----------------------------------------------------------------------\
+                        msg = (
+                            '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id: %s' % (name, pdu_id, str(rack_id))
+                        \n\tWrong rack id: %s'
+                            % (name, pdu_id, str(rack_id))
+                        )
                         logger.info(msg)
 
     def get_patch_panels(self):
@@ -1039,13 +1094,13 @@ class DB(object):
             cur.execute(q)
         data = cur.fetchall()
 
-        if config['Log']['DEBUG']:
-            msg = ('PDUs', str(data))
+        if config["Log"]["DEBUG"]:
+            msg = ("PDUs", str(data))
             logger.debug(msg)
 
         for item in data:
             ports = self.get_ports_by_device(self.all_ports, item[0])
-            patch_type = 'singular'
+            patch_type = "singular"
             port_type = None
 
             if isinstance(ports, list) and len(ports) > 0:
@@ -1058,27 +1113,29 @@ class DB(object):
                             types.append(port[2][:12])
 
                     if len(types) > 1:
-                        patch_type = 'modular'
+                        patch_type = "modular"
                         for port in ports:
-                            rest.post_patch_panel_module_models({
-                                'name': port[0],
-                                'port_type': port[2][:12],
-                                'number_of_ports': 1,
-                                'number_of_ports_in_row': 1
-                            })
+                            rest.post_patch_panel_module_models(
+                                {
+                                    "name": port[0],
+                                    "port_type": port[2][:12],
+                                    "number_of_ports": 1,
+                                    "number_of_ports_in_row": 1,
+                                }
+                            )
 
-                if patch_type == 'singular':
+                if patch_type == "singular":
                     port_type = ports[0][2][:12]
 
             payload = {
-                'name': item[1],
-                'type': patch_type,
-                'number_of_ports': item[2],
-                'number_of_ports_in_row': item[2]
+                "name": item[1],
+                "type": patch_type,
+                "number_of_ports": item[2],
+                "number_of_ports_in_row": item[2],
             }
 
             if port_type is not None:
-                payload.update({'port_type': port_type})
+                payload.update({"port_type": port_type})
 
             rest.post_patch_panel(payload)
 
@@ -1123,10 +1180,13 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = """SELECT
+            q = (
+                """SELECT
                     name
                     FROM Object
-                    WHERE id = ( SELECT object_id FROM Port WHERE id = %s )""" % port_id
+                    WHERE id = ( SELECT object_id FROM Port WHERE id = %s )"""
+                % port_id
+            )
             cur.execute(q)
         data = cur.fetchone()
         if data:
@@ -1139,11 +1199,14 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = """SELECT
+            q = (
+                """SELECT
                     porta,
                     portb
                     FROM Link
-                    WHERE portb = %s""" % port_id
+                    WHERE portb = %s"""
+                % port_id
+            )
             cur.execute(q)
         data = cur.fetchall()
 
@@ -1152,11 +1215,14 @@ class DB(object):
         else:
             with self.con:
                 cur = self.con.cursor()
-                q = """SELECT
+                q = (
+                    """SELECT
                         portb,
                         porta
                         FROM Link
-                        WHERE porta = %s""" % port_id
+                        WHERE porta = %s"""
+                    % port_id
+                )
                 cur.execute(q)
             data = cur.fetchall()
 
@@ -1170,32 +1236,35 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = """SELECT
+            q = (
+                """SELECT
                     EntityLink.parent_entity_id
                     FROM EntityLink
                     WHERE EntityLink.child_entity_id = %s
-                    AND EntityLink.parent_entity_type = 'rack'""" % pdu_id
+                    AND EntityLink.parent_entity_type = 'rack'"""
+                % pdu_id
+            )
             cur.execute(q)
         data = cur.fetchone()
         if data:
             return data[0]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Import config
-    configfile = 'conf'
+    configfile = "conf"
     config = configparser.ConfigParser()
     config.read(configfile)
-    
+
     # Initialize Data pretty printer
     pp = pprint.PrettyPrinter(indent=4)
 
     # Initialize logging platform
-    logger = logging.getLogger('racktables2netbox')
+    logger = logging.getLogger("racktables2netbox")
     logger.setLevel(logging.DEBUG)
 
     # Log to file
-    fh = logging.FileHandler(config['Log']['LOGFILE'])
+    fh = logging.FileHandler(config["Log"]["LOGFILE"])
     fh.setLevel(logging.DEBUG)
 
     # Log to stdout
@@ -1203,7 +1272,7 @@ if __name__ == '__main__':
     ch.setLevel(logging.DEBUG)
 
     # Format log output
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -1211,18 +1280,17 @@ if __name__ == '__main__':
     logger.addHandler(fh)
     logger.addHandler(ch)
 
-    netbox = pynetbox.api(config['NetBox']['NETBOX_HOST'], token=config['NetBox']['NETBOX_TOKEN'])
+    netbox = pynetbox.api(config["NetBox"]["NETBOX_HOST"], token=config["NetBox"]["NETBOX_TOKEN"])
 
     tenant_groups = netbox.tenancy.tenant_groups.all()
 
     print()
-    
-    
-    rest = REST()    
+
+    rest = REST()
     racktables = DB()
-    #racktables.get_subnets()
+    # racktables.get_subnets()
     racktables.get_ips()
-    #racktables.get_infrastructure()
+    # racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
@@ -1234,5 +1302,5 @@ if __name__ == '__main__':
 
     migrator = Migrator()
 
-    logger.info('[!] Done!')
+    logger.info("[!] Done!")
     # sys.exit()
