@@ -13,6 +13,7 @@ import slugify
 import socket
 import struct
 import urllib3
+import urllib.parse
 import re
 
 
@@ -111,6 +112,17 @@ class REST(object):
         logger.info("Posting data to {}".format(url))
         self.uploader(data, url)
 
+    def check_for_ip(self, data):
+        url_safe_ip = urllib.parse.quote_plus(data['address'])
+        url = self.base_url + "/ipam/ip-addresses/?address={}".format(url_safe_ip)
+        logger.info("Posting IP data to {}".format(url))
+        check = self.fetcher(url)
+        json_obj = json.loads(check)
+        logger.debug("response: {}".format(check))
+        if json_obj['count'] > 0:
+            return True
+        else:
+            return False
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
         logger.info("Posting IP data to {}".format(url))
@@ -286,6 +298,7 @@ class DB(object):
 
             rest.post_ip(net)
             logger.info("Post ip {ip}")
+            exit(1)
 
     def get_subnets(self):
         """
