@@ -330,8 +330,8 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("IPs", str(ips))
                 logger.debug(msg)
-            self.con = None
             cur.close()
+            self.con = None
 
         for line in ips:
             net = {}
@@ -367,8 +367,9 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("Subnets", str(subnets))
                 logger.debug(msg)
-            self.con = None
             cur.close()
+            self.con = None
+
         for line in subnets:
             sid, raw_sub, mask, name, x = line
             subnet = self.convert_ip(raw_sub)
@@ -405,7 +406,8 @@ class DB(object):
                     sites_map.update({location_id: location_name})
                 else:
                     rooms_map.update({location_name: parent_name})
-
+            cur.close()
+            self.con = None
         print("Sites:")
         pp.pprint(sites_map)
 
@@ -1354,9 +1356,9 @@ if __name__ == "__main__":
 
     rest = REST()
     racktables = DB()
-    racktables.get_subnets()
+    # racktables.get_subnets()
     # racktables.get_ips()
-    # racktables.get_infrastructure()
+    racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
