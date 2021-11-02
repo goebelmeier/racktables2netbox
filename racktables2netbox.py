@@ -330,6 +330,7 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("IPs", str(ips))
                 logger.debug(msg)
+            cur.close()
 
         for line in ips:
             net = {}
