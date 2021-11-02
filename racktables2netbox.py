@@ -134,7 +134,7 @@ class REST(object):
         url = self.base_url + "/ipam/prefixes/"
         exists = self.check_for_subnet(data)
         if exists:
-            logger.info("prefix/subnet: {} already exists, skipping".format(data["address"]))
+            logger.info("prefix/subnet: {} already exists, skipping".format(data["prefix"]))
         else:
             logger.info("Posting data to {}".format(url))
             self.uploader(data, url)
