@@ -113,25 +113,29 @@ class REST(object):
         self.uploader(data, url)
 
     def check_for_ip(self, data):
-        url_safe_ip = urllib.parse.quote_plus(data['address'])
+        url_safe_ip = urllib.parse.quote_plus(data["address"])
         url = self.base_url + "/ipam/ip-addresses/?address={}".format(url_safe_ip)
         logger.info("Posting IP data to {}".format(url))
         check = self.fetcher(url)
         json_obj = json.loads(check)
         logger.debug("response: {}".format(check))
-        if json_obj['count'] == 1:
+        if json_obj["count"] == 1:
             return True
-        elif json_obj['count'] > 1:
+        elif json_obj["count"] > 1:
             logger.error("duplicate ip's exist. cleanup!")
             exit(2)
         else:
             return False
+
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
         exists = self.check_for_ip(data)
         logger.info("already exists? {}".format(exists))
         logger.info("Posting IP data to {}".format(url))
-        self.uploader(data, url)
+        if exists:
+            print("ip: {} already exists, skipping".format(data["address"]))
+        else:
+            self.uploader(data, url)
 
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
@@ -302,8 +306,7 @@ class DB(object):
             logger.info(msg)
 
             rest.post_ip(net)
-            logger.info("Post ip {ip}")
-            exit(1)
+            # logger.info("Post ip {ip}")
 
     def get_subnets(self):
         """
