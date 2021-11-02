@@ -90,6 +90,7 @@ class REST(object):
         r = self.s.send(prepared_request)
         logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
         r.raise_for_status()
+        r.close()
 
         return r.json()
 
@@ -97,13 +98,24 @@ class REST(object):
         method = "GET"
 
         logger.debug("HTTP Request: {} - {}".format(method, url))
+        max_attempts = 3
+        current_attempt = 1
+        r = {}
+        while current_attempt < max_attempts:
+            try:
+                request = requests.Request(method, url)
+                prepared_request = self.s.prepare_request(request)
+                r = self.s.send(prepared_request)
 
-        request = requests.Request(method, url)
-        prepared_request = self.s.prepare_request(request)
-        r = self.s.send(prepared_request)
+                logger.debug(f"HTTP Response: {r.status_code} - {r.reason}")
+                r.raise_for_status()
+                r.close()
+            except:
+                print("fetch attempt failed")
+            if "status" in r.keys():
+                current_attempt = max_attempts
 
-        logger.debug(f"HTTP Response: {r.status_code} - {r.reason}")
-        r.raise_for_status()
+            current_attempt = current_attempt + 1
 
         return r.text
 
