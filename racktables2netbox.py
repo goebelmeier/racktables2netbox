@@ -84,14 +84,23 @@ class REST(object):
         method = "POST"
 
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
+        max_attempts = 3
+        current_attempt = 1
+        while current_attempt < max_attempts:
+            try:
+                request = requests.Request(method, url, data=json.dumps(data))
+                prepared_request = self.s.prepare_request(request)
+                r = self.s.send(prepared_request)
+                logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+                r.raise_for_status()
+                r.close()
+            except:
+                print("POST attempt failed")
+            if r.status_code == 200:
+                current_attempt = max_attempts
 
-        request = requests.Request(method, url, data=json.dumps(data))
-        prepared_request = self.s.prepare_request(request)
-        r = self.s.send(prepared_request)
-        logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
-        r.raise_for_status()
-        r.close()
-
+            current_attempt = current_attempt + 1
+        
         return r.json()
 
     def fetcher(self, url):
@@ -141,11 +150,10 @@ class REST(object):
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
         exists = self.check_for_ip(data)
-        logger.info("already exists? {}".format(exists))
-        logger.info("Posting IP data to {}".format(url))
         if exists:
-            print("ip: {} already exists, skipping".format(data["address"]))
+            logger.info("ip: {} already exists, skipping".format(data["address"]))
         else:
+            logger.info("Posting IP data to {}".format(url))
             self.uploader(data, url)
 
     # def post_device(self, data):
