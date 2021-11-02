@@ -11,12 +11,15 @@ import configparser
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def api_request(method, url):
+def api_request(method, url, params=None):
     # Log which request we're trying to do
     logger.debug("HTTP Request: {} - {}".format(method, url))
 
     # Prepare request
-    request = requests.Request(method, url)
+    if params == None:
+        request = requests.Request(method, url)
+    else
+        request = requests.Request(method, url, params=params)
     prepared_request = s.prepare_request(request)
 
     response = s.send(prepared_request)
@@ -48,7 +51,7 @@ def delete_ips():
     # Get all sites
     api_url = "{}/ipam/ip-addresses".format(api_url_base)
     params = {"limit": "1000"}
-    response = api_request("GET", api_url, params=params)
+    response = api_request("GET", api_url, params)
     ips = json.loads(response.content.decode("utf-8"))
 
     # Delete every ip we got
