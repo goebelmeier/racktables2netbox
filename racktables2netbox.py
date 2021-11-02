@@ -132,13 +132,32 @@ class REST(object):
 
     def post_subnet(self, data):
         url = self.base_url + "/ipam/prefixes/"
-        logger.info("Posting data to {}".format(url))
-        self.uploader(data, url)
+        exists = self.check_for_subnet(data)
+        if exists:
+            logger.info("prefix/subnet: {} already exists, skipping".format(data["address"]))
+        else:
+            logger.info("Posting data to {}".format(url))
+            self.uploader(data, url)
+
+    def check_for_subnet(self, data):
+        url_safe_ip = urllib.parse.quote_plus(data["prefix"])
+        url = self.base_url + "/ipam/prefixes/?prefix={}".format(url_safe_ip)
+        logger.info("checking for existing prefix in netbox: {}".format(url))
+        check = self.fetcher(url)
+        json_obj = json.loads(check)
+        # logger.debug("response: {}".format(check))
+        if json_obj["count"] == 1:
+            return True
+        elif json_obj["count"] > 1:
+            logger.error("duplicate prefixes exist. cleanup!")
+            exit(2)
+        else:
+            return False
 
     def check_for_ip(self, data):
         url_safe_ip = urllib.parse.quote_plus(data["address"])
         url = self.base_url + "/ipam/ip-addresses/?address={}".format(url_safe_ip)
-        logger.info("Posting IP data to {}".format(url))
+        logger.info("checking for existing ip in netbox: {}".format(url))
         check = self.fetcher(url)
         json_obj = json.loads(check)
         # logger.debug("response: {}".format(check))
