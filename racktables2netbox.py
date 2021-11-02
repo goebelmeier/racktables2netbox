@@ -96,11 +96,12 @@ class REST(object):
                 r.close()
             except:
                 print("POST attempt failed")
-            if r.status_code == 200:
-                current_attempt = max_attempts
+            if r:
+                if r.status_code == 200:
+                    current_attempt = max_attempts
 
             current_attempt = current_attempt + 1
-        
+
         return r.json()
 
     def fetcher(self, url):
@@ -120,8 +121,9 @@ class REST(object):
                 r.close()
             except:
                 print("fetch attempt failed")
-            if r.status_code == 200:
-                current_attempt = max_attempts
+            if r:
+                if r.status_code == 200:
+                    current_attempt = max_attempts
 
             current_attempt = current_attempt + 1
 
