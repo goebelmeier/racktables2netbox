@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import imp
 import sys
 import json
 import requests
@@ -10,12 +9,6 @@ import logging
 import configparser
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Load config file into variable
-configfile = "conf"
-config = configparser.ConfigParser()
-config.read(configfile)
-api_url_base = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
 
 
 def api_request(method, url):
@@ -60,6 +53,12 @@ if __name__ == "__main__":
     logger = logging.getLogger("clean_netbox")
     logger.setLevel(logging.DEBUG)
 
+    # Import config
+    configfile = "conf"
+    config = configparser.ConfigParser()
+    config.read(configfile)
+    api_url_base = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
+    
     # Log to file
     fh = logging.FileHandler(config["CLEAN_LOG"])
     fh.setLevel(logging.DEBUG)
