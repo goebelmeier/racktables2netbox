@@ -118,7 +118,7 @@ class REST(object):
         logger.info("Posting IP data to {}".format(url))
         check = self.fetcher(url)
         json_obj = json.loads(check)
-        logger.debug("response: {}".format(check))
+        # logger.debug("response: {}".format(check))
         if json_obj["count"] == 1:
             return True
         elif json_obj["count"] > 1:
