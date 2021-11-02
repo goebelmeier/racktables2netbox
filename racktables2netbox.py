@@ -125,6 +125,8 @@ class REST(object):
             return False
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
+        exists = self.check_for_ip(data)
+        logger.info("already exists? {}".format(exists))
         logger.info("Posting IP data to {}".format(url))
         self.uploader(data, url)
 
