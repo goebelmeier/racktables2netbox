@@ -117,10 +117,11 @@ class REST(object):
                 r.close()
             except:
                 print("fetch attempt failed")
-            if r:
-                if r.status_code == 200:
-                    current_attempt = max_attempts
-            else:
+            try:
+                if r:
+                    if r.status_code == 200:
+                        current_attempt = max_attempts
+            except:
                 current_attempt = current_attempt + 1
 
         return r.text
