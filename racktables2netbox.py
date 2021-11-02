@@ -119,8 +119,11 @@ class REST(object):
         check = self.fetcher(url)
         json_obj = json.loads(check)
         logger.debug("response: {}".format(check))
-        if json_obj['count'] > 0:
+        if json_obj['count'] == 1:
             return True
+        elif json_obj['count'] > 1:
+            logger.error("duplicate ip's exist. cleanup!")
+            exit(2)
         else:
             return False
     def post_ip(self, data):
