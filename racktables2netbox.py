@@ -99,7 +99,7 @@ class REST(object):
             if r:
                 return_obj = r.json
         except:
-            sleep 2
+            sleep(2)
             return {}
         return return_obj
 
@@ -119,7 +119,7 @@ class REST(object):
                 r.raise_for_status()
                 r.close()
             except:
-                sleep 2
+                sleep(2)
                 print("fetch attempt failed")
             try:
                 if r:
