@@ -18,7 +18,7 @@ def api_request(method, url, params=None):
     # Prepare request
     if params == None:
         request = requests.Request(method, url)
-    else
+    else:
         request = requests.Request(method, url, params=params)
     prepared_request = s.prepare_request(request)
 
