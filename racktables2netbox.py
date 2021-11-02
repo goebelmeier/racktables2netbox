@@ -84,27 +84,21 @@ class REST(object):
         method = "POST"
 
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
-        max_attempts = 3
-        current_attempt = 1
-        while current_attempt < max_attempts:
-            try:
-                request = requests.Request(method, url, data=json.dumps(data))
-                prepared_request = self.s.prepare_request(request)
-                r = self.s.send(prepared_request)
-                logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
-                r.raise_for_status()
-                r.close()
-            except:
-                print("POST attempt failed")
-            if r:
-                if r.status_code == 200:
-                    current_attempt = max_attempts
-            else:
-                current_attempt = current_attempt + 1
 
-            current_attempt = current_attempt + 1
+        try:
+            request = requests.Request(method, url, data=json.dumps(data))
+            prepared_request = self.s.prepare_request(request)
+            r = self.s.send(prepared_request)
+            logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+            r.raise_for_status()
+            r.close()
+        except:
+            print("POST attempt failed")
 
-        return r.json()
+        if r:
+            return r.json
+        else:
+            return {}
 
     def fetcher(self, url):
         method = "GET"
