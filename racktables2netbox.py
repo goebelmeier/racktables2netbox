@@ -99,6 +99,8 @@ class REST(object):
             if r:
                 if r.status_code == 200:
                     current_attempt = max_attempts
+            else:
+                current_attempt = current_attempt + 1
 
             current_attempt = current_attempt + 1
 
@@ -124,8 +126,8 @@ class REST(object):
             if r:
                 if r.status_code == 200:
                     current_attempt = max_attempts
-
-            current_attempt = current_attempt + 1
+            else:
+                current_attempt = current_attempt + 1
 
         return r.text
 
