@@ -100,7 +100,6 @@ class REST(object):
         logger.debug("HTTP Request: {} - {}".format(method, url))
         max_attempts = 3
         current_attempt = 1
-        r = {}
         while current_attempt < max_attempts:
             try:
                 request = requests.Request(method, url)
@@ -112,7 +111,7 @@ class REST(object):
                 r.close()
             except:
                 print("fetch attempt failed")
-            if "status" in r.keys():
+            if r.status_code == 200:
                 current_attempt = max_attempts
 
             current_attempt = current_attempt + 1
