@@ -47,8 +47,8 @@ def delete_ips():
     logger.info("Deleting ips")
     # Get all sites
     api_url = "{}/ipam/ip-addresses".format(api_url_base)
-
-    response = api_request("GET", api_url)
+    params = {"limit": "1000"}
+    response = api_request("GET", api_url, params=params)
     ips = json.loads(response.content.decode("utf-8"))
 
     # Delete every ip we got
