@@ -365,6 +365,7 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("Subnets", str(subnets))
                 logger.debug(msg)
+            cur.close()
         for line in subnets:
             sid, raw_sub, mask, name, x = line
             subnet = self.convert_ip(raw_sub)
