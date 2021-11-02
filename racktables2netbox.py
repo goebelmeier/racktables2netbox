@@ -330,6 +330,7 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("IPs", str(ips))
                 logger.debug(msg)
+            self.con = None
             cur.close()
 
         for line in ips:
@@ -366,6 +367,7 @@ class DB(object):
             if config["Log"]["DEBUG"]:
                 msg = ("Subnets", str(subnets))
                 logger.debug(msg)
+            self.con = None
             cur.close()
         for line in subnets:
             sid, raw_sub, mask, name, x = line
@@ -1353,7 +1355,7 @@ if __name__ == "__main__":
     rest = REST()
     racktables = DB()
     racktables.get_subnets()
-    racktables.get_ips()
+    # racktables.get_ips()
     # racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
