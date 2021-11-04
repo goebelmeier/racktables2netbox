@@ -1358,7 +1358,7 @@ if __name__ == "__main__":
     racktables = DB()
     # racktables.get_subnets()
     # racktables.get_ips()
-    racktables.get_infrastructure()
+    # racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
