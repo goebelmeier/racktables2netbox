@@ -108,8 +108,9 @@ class REST(object):
 
         logger.debug("HTTP Request: {} - {}".format(method, url))
         max_attempts = 3
-        current_attempt = 1
+        current_attempt = 0
         while current_attempt < max_attempts:
+
             try:
                 request = requests.Request(method, url)
                 prepared_request = self.s.prepare_request(request)
@@ -124,11 +125,12 @@ class REST(object):
             try:
                 if r:
                     if r.status_code == 200:
-                        current_attempt = max_attempts
+                        return r.text
             except:
-                current_attempt = current_attempt + 1
-
-        return r.text
+                test = ""
+            current_attempt = current_attempt + 1
+        print("failed to get {} 3 times".format(url))
+        exit(1)
 
     def post_subnet(self, data):
         url = self.base_url + "/ipam/prefixes/"
@@ -177,6 +179,52 @@ class REST(object):
         else:
             logger.info("Posting IP data to {}".format(url))
             self.uploader(data, url)
+
+    def get_sites(self):
+        url = self.base_url + "/dcim/sites/"
+        resp = self.fetcher(url)
+        return json.loads(resp)['results']
+
+    def get_sites_keyd_by_description(self):
+        sites = self.get_sites()
+        resp = {}
+        for site in sites:
+            if site['description'] == "":
+                print("site: {} {} has no description set, skipping".format(site['display'], site['url']))
+            else:
+                if not site['description'] in resp.keys():
+                    resp[site['description']] = site
+                else: 
+                    print("duplicate description detected! {}".format(site['description']))
+        return resp
+    
+    def post_rack(self, data):
+        url = self.base_url + "/dcim/racks/"
+        exists = self.check_if_rack_exists(data)
+        if exists:
+            logger.info("rack: {} already exists, skipping".format(data["name"]))
+        else:
+            logger.info("Posting rack data to {}".format(url))
+            self.uploader(data, url)
+    
+    def check_if_rack_exists(self, data):
+        url_safe_ip = urllib.parse.quote_plus(data["name"])
+        url = self.base_url + "/dcim/racks/?name={}".format(url_safe_ip)
+        logger.info("checking for existing rack in netbox: {}".format(url))
+        check = self.fetcher(url)
+        json_obj = json.loads(check)
+        if json_obj["count"] == 0:
+            return False
+        else: 
+            for rack in json_obj['results']:
+                if rack['site']['id'] == data['site']:
+                    return True
+        return False
+        # elif json_obj["count"] > 1:
+        #     logger.error("duplicate ip's exist. cleanup!")
+        #     exit(2)
+        # else:
+        #     return False
 
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
@@ -390,57 +438,57 @@ class DB(object):
         rackgroups = []
         racks = []
 
-        if not self.con:
-            self.connect()
+        # if not self.con:
+        #     self.connect()
 
-        # ============ BUILDINGS AND ROOMS ============
-        with self.con:
-            cur = self.con.cursor()
-            q = """SELECT id, name, parent_id, parent_name FROM Location"""
-            cur.execute(q)
-            raw = cur.fetchall()
+        # # ============ BUILDINGS AND ROOMS ============
+        # with self.con:
+        #     cur = self.con.cursor()
+        #     q = """SELECT id, name, parent_id, parent_name FROM Location"""
+        #     cur.execute(q)
+        #     raw = cur.fetchall()
 
-            for rec in raw:
-                location_id, location_name, parent_id, parent_name = rec
-                if not parent_name:
-                    sites_map.update({location_id: location_name})
-                else:
-                    rooms_map.update({location_name: parent_name})
-            cur.close()
-            self.con = None
-        print("Sites:")
-        pp.pprint(sites_map)
+        #     for rec in raw:
+        #         location_id, location_name, parent_id, parent_name = rec
+        #         if not parent_name:
+        #             sites_map.update({location_id: location_name})
+        #         else:
+        #             rooms_map.update({location_name: parent_name})
+        #     cur.close()
+        #     self.con = None
+        # print("Sites:")
+        # pp.pprint(sites_map)
 
-        pp.pprint(rooms_map)
+        # pp.pprint(rooms_map)
 
-        print("Rack Groups:")
-        for room, parent in list(rooms_map.items()):
-            if parent in sites_map.values():
-                if room in rooms_map.values():
-                    continue
+        # print("Rack Groups:")
+        # for room, parent in list(rooms_map.items()):
+        #     if parent in sites_map.values():
+        #         if room in rooms_map.values():
+        #             continue
 
-            rackgroup = {}
+        #     rackgroup = {}
 
-            if room not in sites_map.values():
-                name = parent + "-" + room
-                rackgroup.update({"site": rooms_map[parent]})
-            else:
-                name = room
-                rackgroup.update({"site": parent})
+        #     if room not in sites_map.values():
+        #         name = parent + "-" + room
+        #         rackgroup.update({"site": rooms_map[parent]})
+        #     else:
+        #         name = room
+        #         rackgroup.update({"site": parent})
 
-            rackgroup.update({"name": name})
+        #     rackgroup.update({"name": name})
 
-            rackgroups.append(rackgroup)
+        #     rackgroups.append(rackgroup)
+        
+        # for site_id, site_name in list(sites_map.items()):
+        #     if site_name not in rooms_map.values():
+        #         rackgroup = {}
+        #         rackgroup.update({"site": site_name})
+        #         rackgroup.update({"name": site_name})
 
-        for site_id, site_name in list(sites_map.items()):
-            if site_name not in rooms_map.values():
-                rackgroup = {}
-                rackgroup.update({"site": site_name})
-                rackgroup.update({"name": site_name})
+        #         rackgroups.append(rackgroup)
 
-                rackgroups.append(rackgroup)
-
-        pp.pprint(rackgroups)
+        # pp.pprint(rackgroups)
 
         # upload rooms
         # buildings = json.loads((rest.get_buildings()))['buildings']
@@ -451,36 +499,43 @@ class DB(object):
         #         roomdata.update({'building': parent})
         #         rest.post_room(roomdata)
 
-        # # ============ ROWS AND RACKS ============
-        # with self.con:
-        #     cur = self.con.cursor()
-        #     q = """SELECT id, name ,height, row_id, row_name, location_id, location_name from Rack;"""
-        #     cur.execute(q)
-        #     raw = cur.fetchall()
+        # ============ ROWS AND RACKS ============
+        netbox_sites_by_comment = rest.get_sites_keyd_by_description()
+        pp.pprint(netbox_sites_by_comment)
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = """SELECT id, name ,height, row_id, row_name, location_id, location_name from Rack;"""
+            cur.execute(q)
+            raw = cur.fetchall()
+            cur.close()
+            self.con = None
 
-        # for rec in raw:
-        #     rack_id, rack_name, height, row_id, row_name, location_id, location_name = rec
+        for rec in raw:
+            rack_id, rack_name, height, row_id, row_name, location_id, location_name = rec
 
-        #     rows_map.update({row_name: location_name})
+            rows_map.update({row_name: location_name})
 
-        #     # prepare rack data. We will upload it a little bit later
-        #     rack = {}
-        #     rack.update({'name': rack_name})
-        #     rack.update({'size': height})
-        #     rack.update({'rt_id': rack_id})  # we will remove this later
-        #     if config['Misc']['ROW_AS_ROOM']:
-        #         rack.update({'room': row_name})
-        #         rack.update({'building': location_name})
-        #     else:
-        #         row_name = row_name[:10]  # there is a 10char limit for row name
-        #         rack.update({'row': row_name})
-        #         if location_name in rooms_map:
-        #             rack.update({'room': location_name})
-        #             building_name = rooms_map[location_name]
-        #             rack.update({'building': building_name})
-        #         else:
-        #             rack.update({'building': location_name})
-        #     racks.append(rack)
+            # prepare rack data. We will upload it a little bit later
+            rack = {}
+            rack.update({'name': rack_name})
+            rack.update({'size': height})
+            rack.update({'rt_id': rack_id})  # we will remove this later
+            if config['Misc']['ROW_AS_ROOM']:
+                rack.update({'room': row_name})
+                rack.update({'building': location_name})
+            else:
+                row_name = row_name[:10]  # there is a 10char limit for row name
+                rack.update({'row': row_name})
+                if location_name in rooms_map:
+                    rack.update({'room': location_name})
+                    building_name = rooms_map[location_name]
+                    rack.update({'building': building_name})
+                else:
+                    rack.update({'building': location_name})
+            racks.append(rack)
+        pprint.pprint(racks)
 
         # # upload rows as rooms
         # if config['Misc']['ROW_AS_ROOM']:
@@ -493,15 +548,24 @@ class DB(object):
         #         roomdata.update({'building': parent})
         #         rest.post_room(roomdata)
 
-        # # upload racks
-        # if config['Log']['DEBUG']:
-        #     msg = ('Racks', str(racks))
-        #     logger.debug(msg)
-        # for rack in racks:
-        #     rt_rack_id = rack['rt_id']
-        #     del rack['rt_id']
-        #     response = rest.post_rack(rack)
-        #     d42_rack_id = response['msg'][1]
+        # upload racks
+        if config['Log']['DEBUG']:
+            msg = ('Racks', str(racks))
+            # logger.debug(msg)
+        for rack in racks:
+            netbox_rack = {}
+            netbox_rack['name'] = rack['name']
+            print("attempting to get site {} from netbox dict".format(rack['building']))
+            netbox_rack['site'] = netbox_sites_by_comment[rack['building']]['id']
+            netbox_rack['comments'] = rack['room']
+            if rack['size'] == None:
+                netbox_rack['u_height']= 100
+            else:
+                netbox_rack['u_height']= rack['size']
+            pp.pprint(netbox_rack)
+            rest.post_rack(netbox_rack)
+            # response = rest.post_rack(rack)
+
 
         #     self.rack_id_map.update({rt_rack_id: d42_rack_id})
 
@@ -1358,7 +1422,7 @@ if __name__ == "__main__":
     racktables = DB()
     # racktables.get_subnets()
     # racktables.get_ips()
-    # racktables.get_infrastructure()
+    racktables.get_infrastructure()
     # racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()

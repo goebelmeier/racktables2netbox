@@ -7,9 +7,9 @@ DB_USER = netbox
 DB_PWD  = PASSWORD
 # ====== Log settings ==================== #
 [Log]
-LOGFILE   = migration.log
-DEBUG_LOG = debug.log
-CLEAN_LOG = clean_netbox.log
+LOGFILE   = logs/migration.log
+DEBUG_LOG = logs/debug.log
+CLEAN_LOG = logs/clean_netbox.log
 STDOUT    = True  # print to STDOUT
 DEBUG     = True  # write debug log
 # ====== NetBox upload settings ========= #
