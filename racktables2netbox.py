@@ -19,6 +19,7 @@ from time import sleep
 import yaml
 import copy
 
+
 class Migrator:
     def slugify(self, text):
         return slugify.slugify(text, max_length=50)
@@ -105,7 +106,7 @@ class REST(object):
         return return_obj
 
     def uploader2(self, data, url, method="POST"):
-        # ignores failures. 
+        # ignores failures.
         method = "POST"
 
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
@@ -116,7 +117,6 @@ class REST(object):
         logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
         r.close()
         print(r.text)
-
 
     def fetcher(self, url):
         method = "GET"
@@ -152,8 +152,8 @@ class REST(object):
         exists = self.check_for_subnet(data)
         if exists[0]:
             logger.info("prefix/subnet: {} already exists, updating with Put".format(data["prefix"]))
-            method="PUT"
-            url = "{}{}/".format(url, exists[1]['id'])
+            method = "PUT"
+            url = "{}{}/".format(url, exists[1]["id"])
             self.uploader(data, url, method)
         else:
             logger.info("Posting data to {}".format(url))
@@ -167,7 +167,7 @@ class REST(object):
         json_obj = json.loads(check)
         # logger.debug("response: {}".format(check))
         if json_obj["count"] == 1:
-            return True, json_obj['results'][0]
+            return True, json_obj["results"][0]
         elif json_obj["count"] > 1:
             logger.error("duplicate prefixes exist. cleanup!")
             exit(2)
@@ -201,21 +201,21 @@ class REST(object):
     def get_sites(self):
         url = self.base_url + "/dcim/sites/"
         resp = self.fetcher(url)
-        return json.loads(resp)['results']
+        return json.loads(resp)["results"]
 
     def get_sites_keyd_by_description(self):
         sites = self.get_sites()
         resp = {}
         for site in sites:
-            if site['description'] == "":
-                print("site: {} {} has no description set, skipping".format(site['display'], site['url']))
+            if site["description"] == "":
+                print("site: {} {} has no description set, skipping".format(site["display"], site["url"]))
             else:
-                if not site['description'] in resp.keys():
-                    resp[site['description']] = site
-                else: 
-                    print("duplicate description detected! {}".format(site['description']))
+                if not site["description"] in resp.keys():
+                    resp[site["description"]] = site
+                else:
+                    print("duplicate description detected! {}".format(site["description"]))
         return resp
-    
+
     def post_rack(self, data):
         url = self.base_url + "/dcim/racks/"
         exists = self.check_if_rack_exists(data)
@@ -224,7 +224,7 @@ class REST(object):
         else:
             logger.info("Posting rack data to {}".format(url))
             self.uploader(data, url)
-    
+
     def check_if_rack_exists(self, data):
         url_safe_ip = urllib.parse.quote_plus(data["name"])
         url = self.base_url + "/dcim/racks/?name={}".format(url_safe_ip)
@@ -233,9 +233,9 @@ class REST(object):
         json_obj = json.loads(check)
         if json_obj["count"] == 0:
             return False
-        else: 
-            for rack in json_obj['results']:
-                if rack['site']['id'] == data['site']:
+        else:
+            for rack in json_obj["results"]:
+                if rack["site"]["id"] == data["site"]:
                     return True
         return False
         # elif json_obj["count"] > 1:
@@ -247,18 +247,18 @@ class REST(object):
     def post_tag(self, tag, description):
         url = self.base_url + "/extras/tags/"
         data = {}
-        data['name'] = str(tag)
-        data['slug'] = str(tag).lower().replace(" ", "_")
+        data["name"] = str(tag)
+        data["slug"] = str(tag).lower().replace(" ", "_")
         if not description is None:
-            data['description'] = description
+            data["description"] = description
         self.uploader2(data, url)
-    
+
     def get_tags_key_by_name(self):
         url = self.base_url + "/extras/tags/?limit=10000"
         resp = json.loads(self.fetcher(url))
         tags = {}
-        for tag in resp['results']:
-            tags[tag['name']] = tag
+        for tag in resp["results"]:
+            tags[tag["name"]] = tag
         print(tags)
         return tags
 
@@ -410,7 +410,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = 'SELECT * FROM IPv4Address;'
+            q = "SELECT * FROM IPv4Address;"
             cur.execute(q)
             ips = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -418,7 +418,7 @@ class DB(object):
                 logger.debug(msg)
             cur.close()
             cur2 = self.con.cursor()
-            q2 = 'SELECT object_id,ip FROM IPv4Allocation;'
+            q2 = "SELECT object_id,ip FROM IPv4Allocation;"
             cur2.execute(q2)
             ip_by_allocation = cur2.fetchall()
             if config["Log"]["DEBUG"]:
@@ -441,7 +441,7 @@ class DB(object):
             net.update({"description": desc})
             msg = "Label: %s" % desc
             logger.info(msg)
-            if not desc in ['network','broadcast']:
+            if not desc in ["network", "broadcast"]:
                 rest.post_ip(net)
 
         for line in ip_by_allocation:
@@ -453,13 +453,13 @@ class DB(object):
                 msg = "IP Address: %s" % ip
                 logger.info(msg)
                 rest.post_ip(net)
-            
+
     def create_tag_map(self):
         print("creating tag map")
         self.tag_map = rest.get_tags_key_by_name()
         print("there are {} tags cached".format(len(self.tag_map)))
         print(self.tag_map.keys())
-        
+
     def get_subnets(self):
         """
         Fetch subnets from RT and send them to upload function
@@ -491,7 +491,7 @@ class DB(object):
             for tag in rt_tags:
                 try:
                     # print(tag)
-                    tags.append(self.tag_map[tag]['id'])
+                    tags.append(self.tag_map[tag]["id"])
                 except:
                     print("failed to find tag {} in lookup map".format(tag))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
@@ -500,16 +500,18 @@ class DB(object):
             subs.update({"description": name})
             subs.update({"tags": tags})
             rest.post_subnet(subs)
-    
+
     def get_tags_for_obj(self, tag_type, object_id):
         subs = {}
         if not self.con:
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = '''SELECT tag FROM racktables_db.TagStorage
+            q = """SELECT tag FROM racktables_db.TagStorage
                 LEFT JOIN racktables_db.TagTree ON TagStorage.tag_id = TagTree.id
-                WHERE entity_realm = "{}" AND entity_id = "{}" '''.format(tag_type, object_id)
+                WHERE entity_realm = "{}" AND entity_id = "{}" """.format(
+                tag_type, object_id
+            )
             cur.execute(q)
 
             resp = cur.fetchall()
@@ -522,10 +524,10 @@ class DB(object):
         for tag in resp:
             tags.append(tag[0])
         return tags
-    
+
     def get_tags(self):
         tags = []
-        
+
         if not self.con:
             self.connect()
         with self.con:
@@ -540,7 +542,7 @@ class DB(object):
             self.con = None
 
         for line in tags:
-            tag,description = line
+            tag, description = line
             rest.post_tag(tag, description)
 
     def get_infrastructure(self):
@@ -595,7 +597,7 @@ class DB(object):
         #     rackgroup.update({"name": name})
 
         #     rackgroups.append(rackgroup)
-        
+
         # for site_id, site_name in list(sites_map.items()):
         #     if site_name not in rooms_map.values():
         #         rackgroup = {}
@@ -635,21 +637,21 @@ class DB(object):
 
             # prepare rack data. We will upload it a little bit later
             rack = {}
-            rack.update({'name': rack_name})
-            rack.update({'size': height})
-            rack.update({'rt_id': rack_id})  # we will remove this later
-            if config['Misc']['ROW_AS_ROOM']:
-                rack.update({'room': row_name})
-                rack.update({'building': location_name})
+            rack.update({"name": rack_name})
+            rack.update({"size": height})
+            rack.update({"rt_id": rack_id})  # we will remove this later
+            if config["Misc"]["ROW_AS_ROOM"]:
+                rack.update({"room": row_name})
+                rack.update({"building": location_name})
             else:
                 row_name = row_name[:10]  # there is a 10char limit for row name
-                rack.update({'row': row_name})
+                rack.update({"row": row_name})
                 if location_name in rooms_map:
-                    rack.update({'room': location_name})
+                    rack.update({"room": location_name})
                     building_name = rooms_map[location_name]
-                    rack.update({'building': building_name})
+                    rack.update({"building": building_name})
                 else:
-                    rack.update({'building': location_name})
+                    rack.update({"building": location_name})
             racks.append(rack)
         pprint.pprint(racks)
 
@@ -665,23 +667,22 @@ class DB(object):
         #         rest.post_room(roomdata)
 
         # upload racks
-        if config['Log']['DEBUG']:
-            msg = ('Racks', str(racks))
+        if config["Log"]["DEBUG"]:
+            msg = ("Racks", str(racks))
             # logger.debug(msg)
         for rack in racks:
             netbox_rack = {}
-            netbox_rack['name'] = rack['name']
-            print("attempting to get site {} from netbox dict".format(rack['building']))
-            netbox_rack['site'] = netbox_sites_by_comment[rack['building']]['id']
-            netbox_rack['comments'] = rack['room']
-            if rack['size'] == None:
-                netbox_rack['u_height']= 100
+            netbox_rack["name"] = rack["name"]
+            print("attempting to get site {} from netbox dict".format(rack["building"]))
+            netbox_rack["site"] = netbox_sites_by_comment[rack["building"]]["id"]
+            netbox_rack["comments"] = rack["room"]
+            if rack["size"] == None:
+                netbox_rack["u_height"] = 100
             else:
-                netbox_rack['u_height']= rack['size']
+                netbox_rack["u_height"] = rack["size"]
             pp.pprint(netbox_rack)
             rest.post_rack(netbox_rack)
             # response = rest.post_rack(rack)
-
 
         #     self.rack_id_map.update({rt_rack_id: d42_rack_id})
 
@@ -697,7 +698,8 @@ class DB(object):
         with self.con:
             # get hardware items (except PDU's)
             cur = self.con.cursor()
-            q = """SELECT
+            q = (
+                """SELECT
                     Object.id,Object.name as Description, Object.label as Name,
                     Object.asset_no as Asset,Dictionary.dict_value as Type
                     FROM Object
@@ -707,7 +709,9 @@ class DB(object):
                     WHERE 
                         Attribute.id=2 
                         AND Object.objtype_id != 2
-                        """ + config['Misc']['hardware_data_filter']
+                        """
+                + config["Misc"]["hardware_data_filter"]
+            )
             print(q)
             cur.execute(q)
         data = cur.fetchall()
@@ -736,7 +740,7 @@ class DB(object):
                     h = float(hwsize_map[data_id])
                     if float(height) < h:
                         hwsize_map.update({data_id: height})
-        
+
         print(hwsize_map)
         hardware = {}
         for line in data:
@@ -853,18 +857,18 @@ class DB(object):
             self.hardware = self.get_hardware()
         rt_hardware = self.hardware
         rt_device_types = {}
-        
-        for device_id,device in rt_hardware.items():
+
+        for device_id, device in rt_hardware.items():
             print(device)
-            if device['name'] == device['manufacturer']:
-                key = device['name']
+            if device["name"] == device["manufacturer"]:
+                key = device["name"]
             else:
                 key = "{}_{}"
             if not key in rt_device_types.keys():
                 device_type = copy.deepcopy(device)
-                if 'description' in device_type.keys():
-                    del device_type['description']
-                    del device_type['rt_dev_id']
+                if "description" in device_type.keys():
+                    del device_type["description"]
+                    del device_type["rt_dev_id"]
                 rt_device_types[key] = device_type
         pp.pprint(rt_device_types)
 
@@ -985,8 +989,8 @@ class DB(object):
                             LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
                             LEFT JOIN Location ON Rack.location_id = Location.id
                             WHERE Object.id = %s
-                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """+config['Misc']['device_data_filter']
-                    % dev_id
+                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """
+                    + config["Misc"]["device_data_filter"] % dev_id
                 )
 
                 cur.execute(q)
@@ -995,6 +999,7 @@ class DB(object):
                     self.process_data(data, dev_id)
         cur.close()
         self.con = None
+
     def process_data(self, data, dev_id):
         devicedata = {}
         device2rack = {}
@@ -1580,7 +1585,7 @@ if __name__ == "__main__":
 
     rest = REST()
     racktables = DB()
-    if config['Migrate']['TAGS'] == "True":
+    if config["Migrate"]["TAGS"] == "True":
         print("running get tags")
         racktables.get_tags()
     if config["Migrate"]["INFRA"] == "True":
