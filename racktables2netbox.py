@@ -417,6 +417,14 @@ class DB(object):
                 msg = ("IPs", str(ips))
                 logger.debug(msg)
             cur.close()
+            cur2 = self.con.cursor()
+            q2 = 'SELECT object_id,ip FROM IPv4Allocation;'
+            cur2.execute(q2)
+            ip_by_allocation = cur2.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("IPs", str(ip_by_allocation))
+                logger.debug(msg)
+            cur2.close()
             self.con = None
 
         for line in ips:
@@ -435,7 +443,17 @@ class DB(object):
             logger.info(msg)
 
             rest.post_ip(net)
-            # logger.info("Post ip {ip}")
+
+        for line in ip_by_allocation:
+            net = {}
+            object_id, allocationip_raw = line
+            ip = self.convert_ip(allocationip_raw)
+            if not ip in adrese:
+                net.update({"address": ip})
+                msg = "IP Address: %s" % ip
+                logger.info(msg)
+                rest.post_ip(net)
+            
     def create_tag_map(self):
         print("creating tag map")
         self.tag_map = rest.get_tags_key_by_name()
