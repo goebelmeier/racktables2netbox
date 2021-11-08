@@ -410,7 +410,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = 'SELECT * FROM IPv4Address WHERE IPv4Address.name != "" or IPv4Address.comment != ""'
+            q = 'SELECT * FROM IPv4Address;'
             cur.execute(q)
             ips = cur.fetchall()
             if config["Log"]["DEBUG"]:
