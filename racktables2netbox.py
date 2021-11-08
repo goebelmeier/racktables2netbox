@@ -441,8 +441,8 @@ class DB(object):
             net.update({"description": desc})
             msg = "Label: %s" % desc
             logger.info(msg)
-
-            rest.post_ip(net)
+            if not desc in ['network','broadcast']:
+                rest.post_ip(net)
 
         for line in ip_by_allocation:
             net = {}
