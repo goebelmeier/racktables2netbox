@@ -29,3 +29,4 @@ ROW_AS_ROOM = True  # use RTs row as Device42 room.
 # Note: Rooms are required because racks are mounted to rooms, not to buildings!
 PDU_MOUNT = left  # Can be one of: left, right, above, below. Used for Zero-U PDU migration. Default is left
 PDU_ORIENTATION = front  # can be one of: front, back. Used for Zero-U PDU migration. Default is front
+hardware_data_filter = AND Object.has_problems = "no"  # additional MYSQL filter for WHERE object during device search

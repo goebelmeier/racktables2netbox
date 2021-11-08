@@ -573,7 +573,7 @@ class DB(object):
 
     def get_hardware(self):
         """
-        Get hardware from RT and send it to uploader
+        Get hardware from RT
         :return:
         """
         if not self.con:
@@ -588,10 +588,15 @@ class DB(object):
                     LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
                     LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
                     LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
-                    WHERE Attribute.id=2 AND Object.objtype_id != 2
-                    """
+                    WHERE 
+                        Attribute.id=2 
+                        AND Object.objtype_id != 2
+                        """ + config['Misc']['hardware_data_filter']
+            print(q)
             cur.execute(q)
         data = cur.fetchall()
+        cur.close()
+        self.con = None
 
         if config["Log"]["DEBUG"]:
             msg = ("Hardware", str(data))
@@ -605,6 +610,7 @@ class DB(object):
         for line in data:
             line = [0 if not x else x for x in line]
             data_id, description, name, asset, dtype = line
+            print(line)
             size = self.get_hardware_size(data_id)
             if size:
                 floor, height, depth, mount = size
@@ -614,7 +620,9 @@ class DB(object):
                     h = float(hwsize_map[data_id])
                     if float(height) < h:
                         hwsize_map.update({data_id: height})
-
+        
+        print(hwsize_map)
+        hardware = {}
         for line in data:
             hwddata = {}
             line = [0 if not x else x for x in line]
@@ -629,19 +637,26 @@ class DB(object):
             else:
                 vendor = dtype
                 model = dtype
+            if "[[" in vendor:
+                vendor = vendor.replace("[[", "").strip()
+                name = model[:48].split("|")[0].strip()
+            else:
+                name = model[:48].strip()
 
             size = self.get_hardware_size(data_id)
             if size:
                 floor, height, depth, mount = size
                 # patching height
                 height = hwsize_map[data_id]
-                hwddata.update({"notes": description})
+                hwddata.update({"description": description})
                 hwddata.update({"type": 1})
                 hwddata.update({"size": height})
                 hwddata.update({"depth": depth})
-                hwddata.update({"name": model[:48]})
+                hwddata.update({"name": name})
                 hwddata.update({"manufacturer": vendor})
-                # rest.post_hardware(hwddata)
+                hwddata.update({"rt_dev_id": data_id})
+                hardware[data_id] = hwddata
+        return hardware
 
     def get_hardware_size(self, data_id):
         """
@@ -661,6 +676,8 @@ class DB(object):
             q = """SELECT unit_no,atom FROM RackSpace WHERE object_id = %s""" % data_id
             cur.execute(q)
         data = cur.fetchall()
+        cur.close()
+        self.con = None
         if data != ():
             front = 0
             interior = 0
@@ -739,7 +756,8 @@ class DB(object):
             q = """SELECT id, name FROM Object WHERE objtype_id='1505'"""
             cur.execute(q)
             raw = cur.fetchall()
-
+            cur.close()
+            self.con = None
         dev = {}
         for rec in raw:
             host_id = int(rec[0])
@@ -760,7 +778,8 @@ class DB(object):
             q = """SELECT id, name FROM Object WHERE objtype_id='1502'"""
             cur.execute(q)
             raw = cur.fetchall()
-
+            cur.close()
+            self.con = None
         dev = {}
         for rec in raw:
             host_id = int(rec[0])
@@ -787,6 +806,8 @@ class DB(object):
                     FROM EntityLink WHERE child_entity_type='object' AND parent_entity_type = 'object'"""
             cur.execute(q)
             raw = cur.fetchall()
+            cur.close()
+            self.con = None
         for rec in raw:
             container_id, object_id = rec
             self.container_map.update({object_id: container_id})
@@ -828,7 +849,7 @@ class DB(object):
                             LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
                             LEFT JOIN Location ON Rack.location_id = Location.id
                             WHERE Object.id = %s
-                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275)"""
+                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """+config['Misc']['hardware_data_filter']
                     % dev_id
                 )
 
@@ -836,7 +857,8 @@ class DB(object):
                 data = cur.fetchall()
                 if data:  # RT objects that do not have data are locations, racks, rows etc...
                     self.process_data(data, dev_id)
-
+        cur.close()
+        self.con = None
     def process_data(self, data, dev_id):
         devicedata = {}
         device2rack = {}
@@ -963,7 +985,9 @@ class DB(object):
                 if "type" not in devicedata and d42_rack_id and floor:
                     devicedata.update({"type": "physical"})
 
-                rest.post_device(devicedata)
+                # rest.post_device(devicedata)
+                print(devicedata)
+                exit(1)
 
                 # update ports
                 if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
@@ -1385,7 +1409,7 @@ class DB(object):
 if __name__ == "__main__":
     # Import config
     configfile = "conf"
-    config = configparser.ConfigParser()
+    config = configparser.RawConfigParser()
     config.read(configfile)
 
     # Initialize Data pretty printer
@@ -1420,13 +1444,17 @@ if __name__ == "__main__":
 
     rest = REST()
     racktables = DB()
-    if config["Migrate"]["INFRA"]:
+    if config["Migrate"]["INFRA"] == "True":
+        print("running get infra")
         racktables.get_infrastructure()
-    if config["Migrate"]["SUBNETS"]:
+    if config["Migrate"]["SUBNETS"] == "True":
+        print("running get subnets")
         racktables.get_subnets()
-    if config["Migrate"]["IPS"]:
+    if config["Migrate"]["IPS"] == "True":
+        print("running get ips")
         racktables.get_ips()
-    if config["Migrate"]["HARDWARE"]:
+    if config["Migrate"]["HARDWARE"] == "True":
+        print("running get hardware")
         racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
