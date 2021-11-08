@@ -17,7 +17,7 @@ import urllib.parse
 import re
 from time import sleep
 import yaml
-
+import copy
 
 class Migrator:
     def slugify(self, text):
@@ -103,6 +103,20 @@ class REST(object):
             sleep(2)
             return {}
         return return_obj
+
+    def uploader2(self, data, url):
+        # ignores failures. 
+        method = "POST"
+
+        logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
+
+        request = requests.Request(method, url, data=json.dumps(data))
+        prepared_request = self.s.prepare_request(request)
+        r = self.s.send(prepared_request)
+        logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+        r.close()
+        print(r.text)
+
 
     def fetcher(self, url):
         method = "GET"
@@ -227,6 +241,15 @@ class REST(object):
         # else:
         #     return False
 
+    def post_tag(self, tag, description):
+        url = self.base_url + "/extras/tags/"
+        data = {}
+        data['name'] = str(tag)
+        data['slug'] = str(tag).lower().replace(" ", "_")
+        if not description is None:
+            data['description'] = description
+        self.uploader2(data, url)
+
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
     #     logger.info('Posting device data to {}'.format(url))
@@ -332,6 +355,7 @@ class DB(object):
 
     def __init__(self):
         self.con = None
+        self.hardware = None
         self.tables = []
         self.rack_map = []
         self.vm_hosts = {}
@@ -427,6 +451,26 @@ class DB(object):
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
             rest.post_subnet(subs)
+    
+    def get_tags(self):
+        tags = []
+        
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = 'SELECT tag,description FROM racktables_db.TagTree where is_assignable = "yes";'
+            cur.execute(q)
+            tags = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("tags", str(tags))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+
+        for line in tags:
+            tag,description = line
+            rest.post_tag(tag, description)
 
     def get_infrastructure(self):
         """
@@ -653,8 +697,8 @@ class DB(object):
                 hwddata.update({"type": 1})
                 hwddata.update({"size": height})
                 hwddata.update({"depth": depth})
-                hwddata.update({"name": name})
-                hwddata.update({"manufacturer": vendor})
+                hwddata.update({"name": str(name)})
+                hwddata.update({"manufacturer": str(vendor)})
                 hwddata.update({"rt_dev_id": data_id})
                 hardware[data_id] = hwddata
         return hardware
@@ -734,7 +778,24 @@ class DB(object):
             return None, None, None, None
 
     def get_device_types(self):
-        devices = self.get_hardware()
+        if not self.hardware:
+            self.hardware = self.get_hardware()
+        rt_hardware = self.hardware
+        rt_device_types = {}
+        
+        for device_id,device in rt_hardware.items():
+            print(device)
+            if device['name'] == device['manufacturer']:
+                key = device['name']
+            else:
+                key = "{}_{}"
+            if not key in rt_device_types.keys():
+                device_type = copy.deepcopy(device)
+                if 'description' in device_type.keys():
+                    del device_type['description']
+                    del device_type['rt_dev_id']
+                rt_device_types[key] = device_type
+        pp.pprint(rt_device_types)
 
     @staticmethod
     def add_hardware(height, depth, name):
@@ -1448,6 +1509,9 @@ if __name__ == "__main__":
 
     rest = REST()
     racktables = DB()
+    if config['Migrate']['TAGS'] == "True":
+        print("running get tags")
+        racktables.get_tags()
     if config["Migrate"]["INFRA"] == "True":
         print("running get infra")
         racktables.get_infrastructure()
@@ -1458,8 +1522,9 @@ if __name__ == "__main__":
         print("running get ips")
         racktables.get_ips()
     if config["Migrate"]["HARDWARE"] == "True":
-        print("running get hardware")
-        racktables.get_hardware()
+        print("running device types")
+        # racktables.get_hardware()
+        racktables.get_device_types()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
