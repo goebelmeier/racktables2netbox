@@ -91,7 +91,7 @@ class REST(object):
             prepared_request = self.s.prepare_request(request)
             r = self.s.send(prepared_request)
             logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
-            print(r.text)
+            # print(r.text)
             r.raise_for_status()
             r.close()
         except:
@@ -172,7 +172,7 @@ class REST(object):
             logger.error("duplicate prefixes exist. cleanup!")
             exit(2)
         else:
-            return False
+            return False, False
 
     def check_for_ip(self, data):
         url_safe_ip = urllib.parse.quote_plus(data["address"])
