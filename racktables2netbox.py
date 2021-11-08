@@ -82,8 +82,7 @@ class REST(object):
 
         self.s.headers.update(headers)
 
-    def uploader(self, data, url):
-        method = "POST"
+    def uploader(self, data, url, method="POST"):
 
         logger.debug("HTTP Request: {} - {} - {}".format(method, url, data))
 
@@ -92,6 +91,7 @@ class REST(object):
             prepared_request = self.s.prepare_request(request)
             r = self.s.send(prepared_request)
             logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
+            print(r.text)
             r.raise_for_status()
             r.close()
         except:
@@ -104,7 +104,7 @@ class REST(object):
             return {}
         return return_obj
 
-    def uploader2(self, data, url):
+    def uploader2(self, data, url, method="POST"):
         # ignores failures. 
         method = "POST"
 
@@ -150,8 +150,11 @@ class REST(object):
     def post_subnet(self, data):
         url = self.base_url + "/ipam/prefixes/"
         exists = self.check_for_subnet(data)
-        if exists:
-            logger.info("prefix/subnet: {} already exists, skipping".format(data["prefix"]))
+        if exists[0]:
+            logger.info("prefix/subnet: {} already exists, updating with Put".format(data["prefix"]))
+            method="PUT"
+            url = "{}{}/".format(url, exists[1]['id'])
+            self.uploader(data, url, method)
         else:
             logger.info("Posting data to {}".format(url))
             self.uploader(data, url)
@@ -164,7 +167,7 @@ class REST(object):
         json_obj = json.loads(check)
         # logger.debug("response: {}".format(check))
         if json_obj["count"] == 1:
-            return True
+            return True, json_obj['results'][0]
         elif json_obj["count"] > 1:
             logger.error("duplicate prefixes exist. cleanup!")
             exit(2)
@@ -249,6 +252,15 @@ class REST(object):
         if not description is None:
             data['description'] = description
         self.uploader2(data, url)
+    
+    def get_tags_key_by_name(self):
+        url = self.base_url + "/extras/tags/?limit=10000"
+        resp = json.loads(self.fetcher(url))
+        tags = {}
+        for tag in resp['results']:
+            tags[tag['name']] = tag
+        print(tags)
+        return tags
 
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
@@ -356,6 +368,7 @@ class DB(object):
     def __init__(self):
         self.con = None
         self.hardware = None
+        self.tag_map = None
         self.tables = []
         self.rack_map = []
         self.vm_hosts = {}
@@ -423,7 +436,12 @@ class DB(object):
 
             rest.post_ip(net)
             # logger.info("Post ip {ip}")
-
+    def create_tag_map(self):
+        print("creating tag map")
+        self.tag_map = rest.get_tags_key_by_name()
+        print("there are {} tags cached".format(len(self.tag_map)))
+        print(self.tag_map.keys())
+        
     def get_subnets(self):
         """
         Fetch subnets from RT and send them to upload function
@@ -444,13 +462,48 @@ class DB(object):
             self.con = None
 
         for line in subnets:
+            if not self.tag_map:
+                self.create_tag_map()
             sid, raw_sub, mask, name, x = line
             subnet = self.convert_ip(raw_sub)
+            rt_tags = self.get_tags_for_obj("ipv4net", sid)
+            # print(rt_tags)
+            tags = []
+            # print (self.tag_map)
+            for tag in rt_tags:
+                try:
+                    # print(tag)
+                    tags.append(self.tag_map[tag]['id'])
+                except:
+                    print("failed to find tag {} in lookup map".format(tag))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
             subs.update({"status": "active"})
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
+            subs.update({"tags": tags})
             rest.post_subnet(subs)
+    
+    def get_tags_for_obj(self, tag_type, object_id):
+        subs = {}
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = '''SELECT tag FROM racktables_db.TagStorage
+                LEFT JOIN racktables_db.TagTree ON TagStorage.tag_id = TagTree.id
+                WHERE entity_realm = "{}" AND entity_id = "{}" '''.format(tag_type, object_id)
+            cur.execute(q)
+
+            resp = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("tags", str(resp))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+        tags = []
+        for tag in resp:
+            tags.append(tag[0])
+        return tags
     
     def get_tags(self):
         tags = []
