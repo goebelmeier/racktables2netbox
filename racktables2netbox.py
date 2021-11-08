@@ -16,6 +16,7 @@ import urllib3
 import urllib.parse
 import re
 from time import sleep
+import yaml
 
 
 class Migrator:
@@ -732,6 +733,9 @@ class DB(object):
         else:
             return None, None, None, None
 
+    def get_device_types(self):
+        devices = self.get_hardware()
+
     @staticmethod
     def add_hardware(height, depth, name):
         """
@@ -849,7 +853,7 @@ class DB(object):
                             LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
                             LEFT JOIN Location ON Rack.location_id = Location.id
                             WHERE Object.id = %s
-                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """+config['Misc']['hardware_data_filter']
+                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """+config['Misc']['device_data_filter']
                     % dev_id
                 )
 

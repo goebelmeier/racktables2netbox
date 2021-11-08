@@ -1,3 +1,4 @@
 PyMySQL==1.0.2
 pynetbox==5.3.1
 slugify==0.0.1
+pyyaml
