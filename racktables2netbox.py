@@ -1420,10 +1420,14 @@ if __name__ == "__main__":
 
     rest = REST()
     racktables = DB()
-    # racktables.get_subnets()
-    # racktables.get_ips()
-    racktables.get_infrastructure()
-    # racktables.get_hardware()
+    if config["Migrate"]["INFRA"]:
+        racktables.get_infrastructure()
+    if config["Migrate"]["SUBNETS"]:
+        racktables.get_subnets()
+    if config["Migrate"]["IPS"]:
+        racktables.get_ips()
+    if config["Migrate"]["HARDWARE"]:
+        racktables.get_hardware()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
