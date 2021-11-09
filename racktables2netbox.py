@@ -659,8 +659,6 @@ class DB(object):
             rest.post_tag(tag, description)
 
     def get_vlan_domains(self):
-        tags = []
-
         if not self.con:
             self.connect()
         with self.con:
@@ -1735,7 +1733,7 @@ if __name__ == "__main__":
     if config["Migrate"]["INFRA"] == "True":
         print("running get infra")
         racktables.get_infrastructure()
-    if config["Migrate"]["VLAN"] == "TRUE":
+    if config["Migrate"]["VLAN"] == "True":
         racktables.get_vlan_domains()
     if config["Migrate"]["SUBNETS"] == "True":
         print("running get subnets")
