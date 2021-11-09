@@ -400,6 +400,11 @@ class DB(object):
         ip = socket.inet_ntoa(struct.pack("!I", ip_raw))
         return ip
 
+    @staticmethod
+    def convert_ip_v6(ip_raw):
+        ip = socket.inet_ntop(socket.AF_INET6, ip_raw)
+        return ip
+
     def get_ips(self):
         """
         Fetch IPs from RT and send them to upload function
@@ -448,6 +453,60 @@ class DB(object):
             net = {}
             object_id, allocationip_raw = line
             ip = self.convert_ip(allocationip_raw)
+            if not ip in adrese:
+                net.update({"address": ip})
+                msg = "IP Address: %s" % ip
+                logger.info(msg)
+                rest.post_ip(net)
+
+    def get_ips_v6(self):
+        """
+        Fetch v6 IPs from RT and send them to upload function
+        :return:
+        """
+        adrese = []
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = "SELECT * FROM IPv6Address;"
+            cur.execute(q)
+            ips = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("IPs", str(ips))
+                logger.debug(msg)
+            cur.close()
+            cur2 = self.con.cursor()
+            q2 = "SELECT object_id,ip FROM IPv6Allocation;"
+            cur2.execute(q2)
+            ip_by_allocation = cur2.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("IPs", str(ip_by_allocation))
+                logger.debug(msg)
+            cur2.close()
+            self.con = None
+
+        for line in ips:
+            net = {}
+            ip_raw, name, comment, reserved = line
+            ip = self.convert_ip_v6(ip_raw)
+            adrese.append(ip)
+
+            net.update({"address": ip})
+            msg = "IP Address: %s" % ip
+            logger.info(msg)
+
+            desc = " ".join([name, comment]).strip()
+            net.update({"description": desc})
+            msg = "Label: %s" % desc
+            logger.info(msg)
+            if not desc in ["network", "broadcast"]:
+                rest.post_ip(net)
+
+        for line in ip_by_allocation:
+            net = {}
+            object_id, allocationip_raw = line
+            ip = self.convert_ip_v6(allocationip_raw)
             if not ip in adrese:
                 net.update({"address": ip})
                 msg = "IP Address: %s" % ip
@@ -1596,7 +1655,8 @@ if __name__ == "__main__":
         racktables.get_subnets()
     if config["Migrate"]["IPS"] == "True":
         print("running get ips")
-        racktables.get_ips()
+        # racktables.get_ips()
+        racktables.get_ips_v6()
     if config["Migrate"]["HARDWARE"] == "True":
         print("running device types")
         # racktables.get_hardware()
