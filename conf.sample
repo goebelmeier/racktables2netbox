@@ -32,3 +32,4 @@ ROW_AS_ROOM = True  # use RTs row as Device42 room.
 PDU_MOUNT = left  # Can be one of: left, right, above, below. Used for Zero-U PDU migration. Default is left
 PDU_ORIENTATION = front  # can be one of: front, back. Used for Zero-U PDU migration. Default is front
 hardware_data_filter = AND Object.has_problems = "no"  # additional MYSQL filter for WHERE object during device search
+device_data_filter = AND Object.has_problems = "no"
