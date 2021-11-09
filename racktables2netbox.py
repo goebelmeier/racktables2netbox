@@ -219,8 +219,10 @@ class REST(object):
     def post_rack(self, data):
         url = self.base_url + "/dcim/racks/"
         exists = self.check_if_rack_exists(data)
-        if exists:
-            logger.info("rack: {} already exists, skipping".format(data["name"]))
+        if exists[0]:
+            logger.info("rack: {} already exists, updating".format(data["name"]))
+            url = url + "{}/".format(exists[1])
+            self.uploader(data, url, "PUT")
         else:
             logger.info("Posting rack data to {}".format(url))
             self.uploader(data, url)
@@ -232,11 +234,11 @@ class REST(object):
         check = self.fetcher(url)
         json_obj = json.loads(check)
         if json_obj["count"] == 0:
-            return False
+            return False, False
         else:
             for rack in json_obj["results"]:
                 if rack["site"]["id"] == data["site"]:
-                    return True
+                    return True, rack["id"]
         return False
         # elif json_obj["count"] > 1:
         #     logger.error("duplicate ip's exist. cleanup!")
@@ -588,7 +590,7 @@ class DB(object):
             tags = []
             # print (self.tag_map)
             if not comment == None:
-                name = "{} {}".format(name,comment)
+                name = "{} {}".format(name, comment)
             for tag in rt_tags:
                 try:
                     # print(tag)
@@ -624,6 +626,8 @@ class DB(object):
         tags = []
         for tag in resp:
             tags.append(tag[0])
+        if not self.tag_map:
+            self.create_tag_map()
         return tags
 
     def get_tags(self):
@@ -777,6 +781,17 @@ class DB(object):
             print("attempting to get site {} from netbox dict".format(rack["building"]))
             netbox_rack["site"] = netbox_sites_by_comment[rack["building"]]["id"]
             netbox_rack["comments"] = rack["room"]
+            rt_tags = self.get_tags_for_obj("rack", rack["rt_id"])
+            # print(rt_tags)
+            tags = []
+            # print (self.tag_map)
+            for tag in rt_tags:
+                try:
+                    # print(tag)
+                    tags.append(self.tag_map[tag]["id"])
+                except:
+                    print("failed to find tag {} in lookup map".format(tag))
+            netbox_rack["tags"] = tags
             if rack["size"] == None:
                 netbox_rack["u_height"] = 100
             else:
