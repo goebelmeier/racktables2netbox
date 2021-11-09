@@ -303,8 +303,7 @@ class REST(object):
             self.uploader2(data, url)
 
     def check_for_vlan(self, data):
-        name = urllib.parse.quote_plus(data["name"])
-        url = self.base_url + "/ipam/vlans/?name={}&vid={}&group_id={}".format(name, data["vid"], data["group"])
+        url = self.base_url + "/ipam/vlans/?vid={}&group_id={}".format(data["vid"], data["group"])
         logger.info("checking for vlan in netbox: {}".format(url))
         check = self.fetcher(url)
         json_obj = json.loads(check)
