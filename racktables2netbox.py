@@ -559,6 +559,49 @@ class DB(object):
             subs.update({"tags": tags})
             rest.post_subnet(subs)
 
+    def get_subnets_v6(self):
+        """
+        Fetch subnets from RT and send them to upload function
+        :return:
+        """
+        subs = {}
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = "SELECT * FROM IPv6Network"
+            cur.execute(q)
+            subnets = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("Subnets", str(subnets))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+
+        for line in subnets:
+            if not self.tag_map:
+                self.create_tag_map()
+            sid, raw_sub, mask, last_ip, name, comment = line
+            subnet = self.convert_ip_v6(raw_sub)
+            rt_tags = self.get_tags_for_obj("ipv6net", sid)
+            # print(rt_tags)
+            tags = []
+            # print (self.tag_map)
+            if not comment == None:
+                name = "{} {}".format(name,comment)
+            for tag in rt_tags:
+                try:
+                    # print(tag)
+                    tags.append(self.tag_map[tag]["id"])
+                except:
+                    print("failed to find tag {} in lookup map".format(tag))
+            subs.update({"prefix": "/".join([subnet, str(mask)])})
+            subs.update({"status": "active"})
+            # subs.update({'mask_bits': str(mask)})
+            subs.update({"description": name})
+            subs.update({"tags": tags})
+            rest.post_subnet(subs)
+
     def get_tags_for_obj(self, tag_type, object_id):
         subs = {}
         if not self.con:
@@ -1652,9 +1695,10 @@ if __name__ == "__main__":
     if config["Migrate"]["SUBNETS"] == "True":
         print("running get subnets")
         racktables.get_subnets()
+        racktables.get_subnets_v6()
     if config["Migrate"]["IPS"] == "True":
         print("running get ips")
-        # racktables.get_ips()
+        racktables.get_ips()
         racktables.get_ips_v6()
     if config["Migrate"]["HARDWARE"] == "True":
         print("running device types")
