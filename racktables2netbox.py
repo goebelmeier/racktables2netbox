@@ -628,6 +628,8 @@ class DB(object):
             # print(rt_tags)
             tags = []
             # print (self.tag_map)
+            # if not comment == None:
+            #     name = "{} {}".format(name, comment)
             for tag in rt_tags:
                 try:
                     # print(tag)
@@ -653,11 +655,15 @@ class DB(object):
         :return:
         """
         subs = {}
+        if not self.vlan_group_map:
+            self.create_vlan_domains_nb_group_map()
+        if not self.vlan_map:
+            self.create_vlan_nb_map()
         if not self.con:
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = "SELECT * FROM IPv6Network"
+            q = "SELECT * FROM IPv6Network LEFT JOIN racktables_db.VLANIPv6 on IPv6Network.id = VLANIPv6.ipv6net_id"
             cur.execute(q)
             subnets = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -669,7 +675,7 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
-            sid, raw_sub, mask, last_ip, name, comment = line
+            sid, raw_sub, mask, last_ip, name, comment, vlan_domain_id, vlan_id, ipv6net_id  = line
             subnet = self.convert_ip_v6(raw_sub)
             rt_tags = self.get_tags_for_obj("ipv6net", sid)
             # print(rt_tags)
@@ -683,6 +689,12 @@ class DB(object):
                     tags.append(self.tag_map[tag]["id"])
                 except:
                     print("failed to find tag {} in lookup map".format(tag))
+            if not vlan_id is None:
+                try:
+                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id,vlan_id)]['id']
+                    subs.update({"vlan": vlan})
+                except:
+                    print("failed to find vlan for subnet {}".format(subnet))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
             subs.update({"status": "active"})
             # subs.update({'mask_bits': str(mask)})
