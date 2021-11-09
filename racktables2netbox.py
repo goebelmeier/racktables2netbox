@@ -92,7 +92,8 @@ class REST(object):
             prepared_request = self.s.prepare_request(request)
             r = self.s.send(prepared_request)
             logger.debug(f"HTTP Response: {r.status_code!s} - {r.reason}")
-            # print(r.text)
+            if r.status_code not in [200, 201]:
+                print(r.text)
             r.raise_for_status()
             r.close()
         except:
@@ -264,13 +265,70 @@ class REST(object):
         print(tags)
         return tags
 
+    def check_for_vlan_group(self, group_name):
+        url = self.base_url + "/ipam/vlan-groups/?name={}".format(group_name)
+        logger.info("checking for vlan-group in netbox: {}".format(url))
+        check = self.fetcher(url)
+        json_obj = json.loads(check)
+        # logger.debug("response: {}".format(check))
+        if json_obj["count"] == 1:
+            print("found matching group")
+            return True, json_obj["results"][0]
+        elif json_obj["count"] > 1:
+            print("duplcate groups detected, fix this")
+            print(json_obj)
+            exit(1)
+        else:
+            return False, False
+
+    def get_vlan_groups_by_name(self):
+        url = self.base_url + "/ipam/vlan-groups/?limit=10000"
+        resp = json.loads(self.fetcher(url))
+        groups = {}
+        for group in resp["results"]:
+            if group["name"] in groups.keys():
+                print("duplicate group name exists! fix this. group: {}".format(group["name"]))
+                exit(1)
+            groups[group["name"]] = group
+        print(groups)
+        return groups
+
     def post_vlan_group(self, group_name):
-        url = self.base_url + "/extras/tags/"
+        url = self.base_url + "/ipam/vlan-groups/"
         data = {}
         data["name"] = str(group_name)
         data["description"] = str(group_name)
         data["slug"] = str(group_name).lower().replace(" ", "-").replace(":", "")
-        self.uploader2(data, url)
+        if not self.check_for_vlan_group(group_name)[0]:
+            self.uploader2(data, url)
+
+    def check_for_vlan(self, data):
+        name = urllib.parse.quote_plus(data["name"])
+        url = self.base_url + "/ipam/vlans/?name={}&vid={}&group_id={}".format(name, data["vid"], data["group"])
+        logger.info("checking for vlan in netbox: {}".format(url))
+        check = self.fetcher(url)
+        json_obj = json.loads(check)
+        # logger.debug("response: {}".format(check))
+        if json_obj["count"] == 1:
+            print("matching vlan found")
+            return True, json_obj["results"][0]
+        elif json_obj["count"] > 1:
+            print("duplcate vlans detected, fix this")
+            print(json_obj)
+            exit(1)
+        else:
+            return False, False
+
+    def post_vlan(self, data):
+        url = self.base_url + "/ipam/vlans/"
+        exists = self.check_for_vlan(data)
+        if exists[0]:
+            logger.info("vlan: {} already exists, updating".format(data["name"]))
+            url = url + "{}/".format(exists[1]["id"])
+            self.uploader(data, url, "PUT")
+        else:
+            logger.info("Posting vlan data to {}".format(url))
+            self.uploader(data, url)
 
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
@@ -379,6 +437,7 @@ class DB(object):
         self.con = None
         self.hardware = None
         self.tag_map = None
+        self.vlan_group_map = None
         self.tables = []
         self.rack_map = []
         self.vm_hosts = {}
@@ -663,7 +722,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = 'SELECT * FROM VLANDomain;'
+            q = "SELECT * FROM VLANDomain;"
             cur.execute(q)
             resp = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -675,6 +734,54 @@ class DB(object):
         for line in resp:
             id, group_id, description = line
             rest.post_vlan_group(description)
+
+    def create_vlan_domains_nb_group_map(self):
+        nb_groups = rest.get_vlan_groups_by_name()
+        # self.vlan_group_map
+        groups_by_rt_id = {}
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = "SELECT * FROM VLANDomain;"
+            cur.execute(q)
+            resp = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("vlan_domains", str(resp))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+
+        for line in resp:
+            id, group_id, description = line
+            groups_by_rt_id[id] = nb_groups[description]
+        self.vlan_group_map = groups_by_rt_id
+
+    def get_vlans(self):
+        if not self.vlan_group_map:
+            self.create_vlan_domains_nb_group_map()
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = "SELECT * FROM VLANDescription;"
+            cur.execute(q)
+            resp = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("vlans", str(resp))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+
+        for line in resp:
+            vlan_domain_id, vlan_id, vlan_type, vlan_descr = line
+            vlan = {}
+            vlan["group"] = self.vlan_group_map[vlan_domain_id]["id"]
+            vlan["name"] = vlan_descr
+            vlan["vid"] = vlan_id
+            vlan["description"] = vlan_descr
+            print("adding vlan {}".format(vlan))
+            rest.post_vlan(vlan)
 
     def get_infrastructure(self):
         """
@@ -1735,6 +1842,7 @@ if __name__ == "__main__":
         racktables.get_infrastructure()
     if config["Migrate"]["VLAN"] == "True":
         racktables.get_vlan_domains()
+        racktables.get_vlans()
     if config["Migrate"]["SUBNETS"] == "True":
         print("running get subnets")
         racktables.get_subnets()
