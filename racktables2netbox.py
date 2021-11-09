@@ -610,8 +610,8 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = """SELECT tag FROM racktables_db.TagStorage
-                LEFT JOIN racktables_db.TagTree ON TagStorage.tag_id = TagTree.id
+            q = """SELECT tag FROM TagStorage
+                LEFT JOIN TagTree ON TagStorage.tag_id = TagTree.id
                 WHERE entity_realm = "{}" AND entity_id = "{}" """.format(
                 tag_type, object_id
             )
@@ -637,7 +637,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = 'SELECT tag,description FROM racktables_db.TagTree where is_assignable = "yes";'
+            q = 'SELECT tag,description FROM TagTree where is_assignable = "yes";'
             cur.execute(q)
             tags = cur.fetchall()
             if config["Log"]["DEBUG"]:
