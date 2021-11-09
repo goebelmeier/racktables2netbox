@@ -264,6 +264,14 @@ class REST(object):
         print(tags)
         return tags
 
+    def post_vlan_group(self, group_name):
+        url = self.base_url + "/extras/tags/"
+        data = {}
+        data["name"] = str(group_name)
+        data["description"] = str(group_name)
+        data["slug"] = str(group_name).lower().replace(" ", "-").replace(":", "")
+        self.uploader2(data, url)
+
     # def post_device(self, data):
     #     url = self.base_url + '/api/1.0/device/'
     #     logger.info('Posting device data to {}'.format(url))
@@ -649,6 +657,26 @@ class DB(object):
         for line in tags:
             tag, description = line
             rest.post_tag(tag, description)
+
+    def get_vlan_domains(self):
+        tags = []
+
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = 'SELECT * FROM VLANDomain;'
+            cur.execute(q)
+            resp = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("vlan_domains", str(resp))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+
+        for line in resp:
+            id, group_id, description = line
+            rest.post_vlan_group(description)
 
     def get_infrastructure(self):
         """
@@ -1707,6 +1735,8 @@ if __name__ == "__main__":
     if config["Migrate"]["INFRA"] == "True":
         print("running get infra")
         racktables.get_infrastructure()
+    if config["Migrate"]["VLAN"] == "TRUE":
+        racktables.get_vlan_domains()
     if config["Migrate"]["SUBNETS"] == "True":
         print("running get subnets")
         racktables.get_subnets()

@@ -20,7 +20,8 @@ NETBOX_HOST  = https://netbox.example.net
 [Migrate]
 TAGS = True
 INFRA = True
-SUBNETS = TRUE
+VLAN = True
+SUBNETS = True
 IPS = True
 HARDWARE = True
 # ====== Other settings ========= #
