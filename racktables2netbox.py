@@ -609,7 +609,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = "SELECT * FROM IPv4Network LEFT JOIN racktables_db.VLANIPv4 on IPv4Network.id = VLANIPv4.ipv4net_id"
+            q = "SELECT * FROM IPv4Network LEFT JOIN VLANIPv4 on IPv4Network.id = VLANIPv4.ipv4net_id"
             cur.execute(q)
             subnets = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -662,7 +662,7 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = "SELECT * FROM IPv6Network LEFT JOIN racktables_db.VLANIPv6 on IPv6Network.id = VLANIPv6.ipv6net_id"
+            q = "SELECT * FROM IPv6Network LEFT JOIN VLANIPv6 on IPv6Network.id = VLANIPv6.ipv6net_id"
             cur.execute(q)
             subnets = cur.fetchall()
             if config["Log"]["DEBUG"]:
