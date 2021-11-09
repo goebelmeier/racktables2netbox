@@ -317,15 +317,14 @@ class REST(object):
             exit(1)
         else:
             return False, False
-    
+
     def get_nb_vlans(self):
         vlans_by_netbox_id = {}
         url = self.base_url + "/ipam/vlans/?limit=10000"
         resp = json.loads(self.fetcher(url))
-        for vlan in resp['results']:
-            vlans_by_netbox_id[vlan['id']] = vlan
+        for vlan in resp["results"]:
+            vlans_by_netbox_id[vlan["id"]] = vlan
         return vlans_by_netbox_id
-
 
     def post_vlan(self, data):
         url = self.base_url + "/ipam/vlans/"
@@ -622,7 +621,7 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
-            sid, raw_sub, mask, name, comment, vlan_domain_id, vlan_id, ipv4net_id  = line
+            sid, raw_sub, mask, name, comment, vlan_domain_id, vlan_id, ipv4net_id = line
             subnet = self.convert_ip(raw_sub)
             rt_tags = self.get_tags_for_obj("ipv4net", sid)
             # print(rt_tags)
@@ -638,7 +637,7 @@ class DB(object):
                     print("failed to find tag {} in lookup map".format(tag))
             if not vlan_id is None:
                 try:
-                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id,vlan_id)]['id']
+                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id, vlan_id)]["id"]
                     subs.update({"vlan": vlan})
                 except:
                     print("failed to find vlan for subnet {}".format(subnet))
@@ -675,7 +674,7 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
-            sid, raw_sub, mask, last_ip, name, comment, vlan_domain_id, vlan_id, ipv6net_id  = line
+            sid, raw_sub, mask, last_ip, name, comment, vlan_domain_id, vlan_id, ipv6net_id = line
             subnet = self.convert_ip_v6(raw_sub)
             rt_tags = self.get_tags_for_obj("ipv6net", sid)
             # print(rt_tags)
@@ -691,7 +690,7 @@ class DB(object):
                     print("failed to find tag {} in lookup map".format(tag))
             if not vlan_id is None:
                 try:
-                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id,vlan_id)]['id']
+                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id, vlan_id)]["id"]
                     subs.update({"vlan": vlan})
                 except:
                     print("failed to find vlan for subnet {}".format(subnet))
@@ -787,7 +786,7 @@ class DB(object):
             id, group_id, description = line
             groups_by_rt_id[id] = nb_groups[description]
         self.vlan_group_map = groups_by_rt_id
-    
+
     def create_vlan_nb_map(self):
         if not self.vlan_group_map:
             self.create_vlan_domains_nb_group_map()
@@ -802,8 +801,8 @@ class DB(object):
 
             found = False
             for nb_vlan_id, nb_vlan_data in nb_vlans.items():
-                if nb_vlan_data['vid'] == vlan_id:
-                    if nb_vlan_data['group']['name'] == vlan_domain_data['name']:
+                if nb_vlan_data["vid"] == vlan_id:
+                    if nb_vlan_data["group"]["name"] == vlan_domain_data["name"]:
                         print(nb_vlan_data)
                         found = True
                         key = "{}_{}".format(vlan_domain_id, vlan_id)
@@ -813,7 +812,6 @@ class DB(object):
                 print(line)
                 exit(1)
         self.vlan_map = rt_vlan_table
-        
 
     def get_vlans(self):
         resp = self.get_vlans_data()
@@ -822,12 +820,12 @@ class DB(object):
             vlan_domain_id, vlan_id, vlan_type, vlan_descr = line
             vlan = {}
             vlan["group"] = self.vlan_group_map[vlan_domain_id]["id"]
-            vlan["name"] = vlan_descr[:min(len(vlan_descr), 64)] # limit char lenght
+            vlan["name"] = vlan_descr[: min(len(vlan_descr), 64)]  # limit char lenght
             vlan["vid"] = vlan_id
             vlan["description"] = vlan_descr
             print("adding vlan {}".format(vlan))
             rest.post_vlan(vlan)
-    
+
     def get_vlans_data(self):
         if not self.vlan_group_map:
             self.create_vlan_domains_nb_group_map()
