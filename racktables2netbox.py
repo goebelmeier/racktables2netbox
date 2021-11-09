@@ -317,6 +317,15 @@ class REST(object):
             exit(1)
         else:
             return False, False
+    
+    def get_nb_vlans(self):
+        vlans_by_netbox_id = {}
+        url = self.base_url + "/ipam/vlans/?limit=10000"
+        resp = json.loads(self.fetcher(url))
+        for vlan in resp['results']:
+            vlans_by_netbox_id[vlan['id']] = vlan
+        return vlans_by_netbox_id
+
 
     def post_vlan(self, data):
         url = self.base_url + "/ipam/vlans/"
@@ -437,6 +446,7 @@ class DB(object):
         self.hardware = None
         self.tag_map = None
         self.vlan_group_map = None
+        self.vlan_map = None
         self.tables = []
         self.rack_map = []
         self.vm_hosts = {}
@@ -592,11 +602,15 @@ class DB(object):
         :return:
         """
         subs = {}
+        if not self.vlan_group_map:
+            self.create_vlan_domains_nb_group_map()
+        if not self.vlan_map:
+            self.create_vlan_nb_map()
         if not self.con:
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = "SELECT * FROM IPv4Network"
+            q = "SELECT * FROM IPv4Network LEFT JOIN racktables_db.VLANIPv4 on IPv4Network.id = VLANIPv4.ipv4net_id"
             cur.execute(q)
             subnets = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -608,7 +622,7 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
-            sid, raw_sub, mask, name, x = line
+            sid, raw_sub, mask, name, comment, vlan_domain_id, vlan_id, ipv4net_id  = line
             subnet = self.convert_ip(raw_sub)
             rt_tags = self.get_tags_for_obj("ipv4net", sid)
             # print(rt_tags)
@@ -620,6 +634,12 @@ class DB(object):
                     tags.append(self.tag_map[tag]["id"])
                 except:
                     print("failed to find tag {} in lookup map".format(tag))
+            if not vlan_id is None:
+                try:
+                    vlan = self.vlan_map["{}_{}".format(vlan_domain_id,vlan_id)]['id']
+                    subs.update({"vlan": vlan})
+                except:
+                    print("failed to find vlan for subnet {}".format(subnet))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
             subs.update({"status": "active"})
             # subs.update({'mask_bits': str(mask)})
@@ -755,15 +775,55 @@ class DB(object):
             id, group_id, description = line
             groups_by_rt_id[id] = nb_groups[description]
         self.vlan_group_map = groups_by_rt_id
+    
+    def create_vlan_nb_map(self):
+        if not self.vlan_group_map:
+            self.create_vlan_domains_nb_group_map()
+        rt_vlans = self.get_vlans_data()
+        nb_vlans = rest.get_nb_vlans()
+
+        # pp.pprint(rt_vlans)
+        rt_vlan_table = {}
+        for line in rt_vlans:
+            vlan_domain_id, vlan_id, vlan_type, vlan_descr = line
+            vlan_domain_data = self.vlan_group_map[vlan_domain_id]
+
+            found = False
+            for nb_vlan_id, nb_vlan_data in nb_vlans.items():
+                if nb_vlan_data['vid'] == vlan_id:
+                    if nb_vlan_data['group']['name'] == vlan_domain_data['name']:
+                        print(nb_vlan_data)
+                        found = True
+                        key = "{}_{}".format(vlan_domain_id, vlan_id)
+                        rt_vlan_table[key] = nb_vlan_data
+            if not found:
+                print("unable to find a vlan. dying")
+                print(line)
+                exit(1)
+        self.vlan_map = rt_vlan_table
+        
 
     def get_vlans(self):
+        resp = self.get_vlans_data()
+
+        for line in resp:
+            vlan_domain_id, vlan_id, vlan_type, vlan_descr = line
+            vlan = {}
+            vlan["group"] = self.vlan_group_map[vlan_domain_id]["id"]
+            vlan["name"] = vlan_descr[:min(len(vlan_descr), 64)] # limit char lenght
+            vlan["vid"] = vlan_id
+            vlan["description"] = vlan_descr
+            print("adding vlan {}".format(vlan))
+            rest.post_vlan(vlan)
+    
+    def get_vlans_data(self):
         if not self.vlan_group_map:
             self.create_vlan_domains_nb_group_map()
         if not self.con:
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = "SELECT * FROM VLANDescription;"
+            q = "SELECT * FROM VLANDescription order by domain_id desc;"
             cur.execute(q)
             resp = cur.fetchall()
             if config["Log"]["DEBUG"]:
@@ -771,16 +831,7 @@ class DB(object):
                 logger.debug(msg)
             cur.close()
             self.con = None
-
-        for line in resp:
-            vlan_domain_id, vlan_id, vlan_type, vlan_descr = line
-            vlan = {}
-            vlan["group"] = self.vlan_group_map[vlan_domain_id]["id"]
-            vlan["name"] = vlan_descr
-            vlan["vid"] = vlan_id
-            vlan["description"] = vlan_descr
-            print("adding vlan {}".format(vlan))
-            rest.post_vlan(vlan)
+        return resp
 
     def get_infrastructure(self):
         """
