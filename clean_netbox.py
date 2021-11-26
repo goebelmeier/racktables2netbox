@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import configparser
 import imp
 import sys
 import json
@@ -11,22 +12,27 @@ import logging
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Load config file into variable
-conf = imp.load_source('conf', 'conf')
-api_url_base = "{}/api".format(conf.NETBOX_HOST)
+#conf = imp.load_source('conf', 'conf')
+configfile = 'conf'
+config = configparser.ConfigParser()
+config.read(configfile)
+
+#api_url_base = "{}/api".format(conf.NETBOX_HOST)
+api_url_base = "{}/api".format(config['NetBox']['NETBOX_HOST'])
 
 def api_request(method, url):
     # Log which request we're trying to do
     logger.debug("HTTP Request: {} - {}".format(method, url))
-    
+
     # Prepare request
     request = requests.Request(method, url)
     prepared_request = s.prepare_request(request)
-    
+
     response = s.send(prepared_request)
 
     # Log HTTP Response
     logger.debug("HTTP Response: {!s} - {}".format(response.status_code, response.reason))
-    
+
     return response
 
 def delete_sites():
@@ -54,7 +60,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
 
     # Log to file
-    fh = logging.FileHandler(conf.CLEAN_LOG)
+    fh = logging.FileHandler(config['Log']['CLEAN_LOG'])
     fh.setLevel(logging.DEBUG)
 
     # Log to stdout
@@ -77,9 +83,10 @@ if __name__ == '__main__':
     s.verify = False
 
     # Define REST Headers
-    headers = {'Content-Type': 'application/json', 
+    headers = {'Content-Type': 'application/json',
         'Accept': 'application/json; indent=4',
-        'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+        #'Authorization': 'Token {0}'.format(conf.NETBOX_TOKEN)}
+        'Authorization': 'Token {0}'.format(config['NetBox']['NETBOX_TOKEN'])}
 
     s.headers.update(headers)
 
