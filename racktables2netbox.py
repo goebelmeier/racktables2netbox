@@ -1172,7 +1172,7 @@ class DB(object):
             if device["name"] == device["manufacturer"]:
                 key = device["name"]
             else:
-                key = "{}_{}"
+                key = "{} {}".format(device["manufacturer"], device["name"])
             if not key in rt_device_types.keys():
                 device_type = copy.deepcopy(device)
                 if "description" in device_type.keys():
@@ -1863,7 +1863,7 @@ if __name__ == "__main__":
     config.read(configfile)
 
     # Initialize Data pretty printer
-    pp = pprint.PrettyPrinter(indent=4)
+    pp = pprint.PrettyPrinter(indent=4, width=100)
 
     # Initialize logging platform
     logger = logging.getLogger("racktables2netbox")
