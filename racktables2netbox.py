@@ -64,7 +64,7 @@ class Migrator:
 
 # Re-Enabled SSL verification
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-class REST(object):
+class NETBOX(object):
     def __init__(self):
         self.base_url = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
 
@@ -524,7 +524,7 @@ class DB(object):
             msg = "Label: %s" % desc
             logger.info(msg)
             if not desc in ["network", "broadcast"]:
-                rest.post_ip(net)
+                netbox.post_ip(net)
 
         for line in ip_by_allocation:
             net = {}
@@ -534,7 +534,7 @@ class DB(object):
                 net.update({"address": ip})
                 msg = "IP Address: %s" % ip
                 logger.info(msg)
-                rest.post_ip(net)
+                netbox.post_ip(net)
 
     def get_ips_v6(self):
         """
@@ -577,7 +577,7 @@ class DB(object):
             net.update({"description": desc})
             msg = "Label: %s" % desc
             logger.info(msg)
-            rest.post_ip(net)
+            netbox.post_ip(net)
 
         for line in ip_by_allocation:
             net = {}
@@ -587,11 +587,11 @@ class DB(object):
                 net.update({"address": ip})
                 msg = "IP Address: %s" % ip
                 logger.info(msg)
-                rest.post_ip(net)
+                netbox.post_ip(net)
 
     def create_tag_map(self):
         print("creating tag map")
-        self.tag_map = rest.get_tags_key_by_name()
+        self.tag_map = netbox.get_tags_key_by_name()
         print("there are {} tags cached".format(len(self.tag_map)))
         print(self.tag_map.keys())
 
@@ -646,7 +646,7 @@ class DB(object):
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
             subs.update({"tags": tags})
-            rest.post_subnet(subs)
+            netbox.post_subnet(subs)
 
     def get_subnets_v6(self):
         """
@@ -699,7 +699,7 @@ class DB(object):
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
             subs.update({"tags": tags})
-            rest.post_subnet(subs)
+            netbox.post_subnet(subs)
 
     def get_tags_for_obj(self, tag_type, object_id):
         subs = {}
@@ -745,7 +745,7 @@ class DB(object):
 
         for line in tags:
             tag, description = line
-            rest.post_tag(tag, description)
+            netbox.post_tag(tag, description)
 
     def get_vlan_domains(self):
         if not self.con:
@@ -763,10 +763,10 @@ class DB(object):
 
         for line in resp:
             id, group_id, description = line
-            rest.post_vlan_group(description)
+            netbox.post_vlan_group(description)
 
     def create_vlan_domains_nb_group_map(self):
-        nb_groups = rest.get_vlan_groups_by_name()
+        nb_groups = netbox.get_vlan_groups_by_name()
         # self.vlan_group_map
         groups_by_rt_id = {}
         if not self.con:
@@ -791,7 +791,7 @@ class DB(object):
         if not self.vlan_group_map:
             self.create_vlan_domains_nb_group_map()
         rt_vlans = self.get_vlans_data()
-        nb_vlans = rest.get_nb_vlans()
+        nb_vlans = netbox.get_nb_vlans()
 
         # pp.pprint(rt_vlans)
         rt_vlan_table = {}
@@ -824,7 +824,7 @@ class DB(object):
             vlan["vid"] = vlan_id
             vlan["description"] = vlan_descr
             print("adding vlan {}".format(vlan))
-            rest.post_vlan(vlan)
+            netbox.post_vlan(vlan)
 
     def get_vlans_data(self):
         if not self.vlan_group_map:
@@ -907,16 +907,16 @@ class DB(object):
         # pp.pprint(rackgroups)
 
         # upload rooms
-        # buildings = json.loads((rest.get_buildings()))['buildings']
+        # buildings = json.loads((netbox.get_buildings()))['buildings']
 
         #     for room, parent in list(rooms_map.items()):
         #         roomdata = {}
         #         roomdata.update({'name': room})
         #         roomdata.update({'building': parent})
-        #         rest.post_room(roomdata)
+        #         netbox.post_room(roomdata)
 
         # ============ ROWS AND RACKS ============
-        netbox_sites_by_comment = rest.get_sites_keyd_by_description()
+        netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
         pp.pprint(netbox_sites_by_comment)
         if not self.con:
             self.connect()
@@ -962,7 +962,7 @@ class DB(object):
         #         roomdata = {}
         #         roomdata.update({'name': room})
         #         roomdata.update({'building': parent})
-        #         rest.post_room(roomdata)
+        #         netbox.post_room(roomdata)
 
         # upload racks
         if config["Log"]["DEBUG"]:
@@ -990,8 +990,8 @@ class DB(object):
             else:
                 netbox_rack["u_height"] = rack["size"]
             pp.pprint(netbox_rack)
-            rest.post_rack(netbox_rack)
-            # response = rest.post_rack(rack)
+            netbox.post_rack(netbox_rack)
+            # response = netbox.post_rack(rack)
 
         #     self.rack_id_map.update({rt_rack_id: d42_rack_id})
 
@@ -1195,7 +1195,7 @@ class DB(object):
             hwddata.update({"depth": depth})
         if name:
             hwddata.update({"name": name[:48]})
-            # rest.post_hardware(hwddata)
+            # netbox.post_hardware(hwddata)
 
     def get_vmhosts(self):
         if not self.con:
@@ -1217,7 +1217,7 @@ class DB(object):
             self.vm_hosts.update({host_id: name})
             dev.update({"name": name})
             dev.update({"is_it_virtual_host": "yes"})
-            # rest.post_device(dev)
+            # netbox.post_device(dev)
 
     def get_chassis(self):
         if not self.con:
@@ -1239,7 +1239,7 @@ class DB(object):
             self.chassis.update({host_id: name})
             dev.update({"name": name})
             dev.update({"is_it_blade_host": "yes"})
-            # rest.post_device(dev)
+            # netbox.post_device(dev)
 
     def get_container_map(self):
         """
@@ -1435,7 +1435,7 @@ class DB(object):
                 if "type" not in devicedata and d42_rack_id and floor:
                     devicedata.update({"type": "physical"})
 
-                # rest.post_device(devicedata)
+                # netbox.post_device(devicedata)
                 print(devicedata)
                 exit(1)
 
@@ -1457,7 +1457,7 @@ class DB(object):
                                 switchport_data.update({"remote_device": device_name})
                                 # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
-                                rest.post_switchport(switchport_data)
+                                netbox.post_switchport(switchport_data)
 
                                 # reverse connection
                                 device_name = self.get_device_by_port(get_links[0])
@@ -1470,9 +1470,9 @@ class DB(object):
                                 switchport_data.update({"remote_device": name})
                                 switchport_data.update({"remote_port": item[0]})
 
-                                rest.post_switchport(switchport_data)
+                                netbox.post_switchport(switchport_data)
                             else:
-                                rest.post_switchport(switchport_data)
+                                netbox.post_switchport(switchport_data)
 
                 # if there is a device, we can try to mount it to the rack
                 if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
@@ -1482,7 +1482,7 @@ class DB(object):
                     device2rack.update({"rack_id": d42_rack_id})
                     device2rack.update({"start_at": floor})
 
-                    rest.post_device2rack(device2rack)
+                    netbox.post_device2rack(device2rack)
                 else:
                     if dev_type != 1504 and d42_rack_id is not None:
                         msg = (
@@ -1538,7 +1538,7 @@ class DB(object):
             devmap.update({"device": hostname})
             if nic_name:
                 devmap.update({"tag": nic_name})
-            rest.post_ip(devmap)
+            netbox.post_ip(devmap)
 
     def get_pdus(self):
         if not self.con:
@@ -1590,16 +1590,16 @@ class DB(object):
 
             # post pdu models
             if pdu_type and name not in pdumodels:
-                rest.post_pdu_model(pdumodel)
+                netbox.post_pdu_model(pdumodel)
                 pdumodels.append(pdumodel)
             elif pdu_type and rack_id:
                 if pdu_id not in pdu_rack_models:
-                    rest.post_pdu_model(pdumodel)
+                    netbox.post_pdu_model(pdumodel)
                     pdu_rack_models.append(pdu_id)
 
             # post pdus
             if pdu_id not in pdumap:
-                response = rest.post_pdu(pdudata)
+                response = netbox.post_pdu(pdudata)
                 d42_pdu_id = response["msg"][1]
                 pdumap.update({pdu_id: d42_pdu_id})
 
@@ -1622,7 +1622,7 @@ class DB(object):
                             rdata.update({"where": "mounted"})
                             rdata.update({"start_at": floor})
                             rdata.update({"orientation": mount})
-                            rest.post_pdu_to_rack(rdata, d42_rack_id)
+                            netbox.post_pdu_to_rack(rdata, d42_rack_id)
                     except TypeError:
                         msg = (
                             '\n-----------------------------------------------------------------------\
@@ -1674,7 +1674,7 @@ class DB(object):
                         rdata.update({"pdu_model": pdu_type})
                         rdata.update({"where": where})
                         rdata.update({"orientation": mount})
-                        rest.post_pdu_to_rack(rdata, d42_rack_id)
+                        netbox.post_pdu_to_rack(rdata, d42_rack_id)
                     except UnboundLocalError:
                         msg = (
                             '\n-----------------------------------------------------------------------\
@@ -1721,7 +1721,7 @@ class DB(object):
                     if len(types) > 1:
                         patch_type = "modular"
                         for port in ports:
-                            rest.post_patch_panel_module_models(
+                            netbox.post_patch_panel_module_models(
                                 {
                                     "name": port[0],
                                     "port_type": port[2][:12],
@@ -1743,7 +1743,7 @@ class DB(object):
             if port_type is not None:
                 payload.update({"port_type": port_type})
 
-            rest.post_patch_panel(payload)
+            netbox.post_patch_panel(payload)
 
     def get_ports(self):
         if not self.con:
@@ -1892,7 +1892,7 @@ if __name__ == "__main__":
 
     print()
 
-    rest = REST()
+    netbox = NETBOX()
     racktables = DB()
     if config["Migrate"]["TAGS"] == "True":
         print("running get tags")
