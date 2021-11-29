@@ -3,7 +3,7 @@
 by_key_name:
   Dell PowerEdge R620:
     slug: dell_poweredge_r620
-    yaml_url: https://github.com/netbox-community/devicetype-library/blob/master/device-types/Dell/PowerEdge_R620.yaml
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Dell/PowerEdge_R620.yaml
   Dell PowerEdge R610:
     slug: dell_poweredge_r610
     yaml_file: custom_device_templates/dell_r610.yml

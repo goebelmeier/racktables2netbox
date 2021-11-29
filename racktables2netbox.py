@@ -1009,12 +1009,16 @@ class DB(object):
             cur = self.con.cursor()
             q = (
                 """SELECT
-                    Object.id,Object.name as Description, Object.label as Name,
-                    Object.asset_no as Asset,Dictionary.dict_value as Type
+                    Object.id,Object.name as Description,
+                    Object.label as Name,
+                    Object.asset_no as Asset,
+                    Dictionary.dict_value as Type,
+                    Chapter.name
                     FROM Object
                     LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
                     LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
                     LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                    LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
                     WHERE 
                         Attribute.id=2 
                         AND Object.objtype_id != 2
@@ -1036,10 +1040,10 @@ class DB(object):
         # two or more devices based on same HW model have different size in rack
         # here we try to find and set smallest U for device
         hwsize_map = {}
+        print("about to get hardware sizes for existing services. this may take some time")
         for line in data:
             line = [0 if not x else x for x in line]
-            data_id, description, name, asset, dtype = line
-            print(line)
+            data_id, description, name, asset, dtype, device_section = line
             size = self.get_hardware_size(data_id)
             if size:
                 floor, height, depth, mount = size
@@ -1055,7 +1059,7 @@ class DB(object):
         for line in data:
             hwddata = {}
             line = [0 if not x else x for x in line]
-            data_id, description, name, asset, dtype = line
+            data_id, description, name, asset, dtype, device_section = line
 
             if "%GPASS%" in dtype:
                 vendor, model = dtype.split("%GPASS%")
@@ -1071,6 +1075,9 @@ class DB(object):
                 name = model[:48].split("|")[0].strip()
             else:
                 name = model[:48].strip()
+            device_section = device_section.strip()
+            if "models" in device_section:
+                device_section = device_section.replace("models", "").strip()
 
             size = self.get_hardware_size(data_id)
             if size:
@@ -1083,6 +1090,7 @@ class DB(object):
                 hwddata.update({"depth": depth})
                 hwddata.update({"name": str(name)})
                 hwddata.update({"manufacturer": str(vendor)})
+                hwddata.update({"rt_device_section": device_section})
                 hwddata.update({"rt_dev_id": data_id})
                 hardware[data_id] = hwddata
         return hardware
@@ -1179,7 +1187,32 @@ class DB(object):
                     del device_type["description"]
                     del device_type["rt_dev_id"]
                 rt_device_types[key] = device_type
-        pp.pprint(rt_device_types)
+        return rt_device_types
+
+    def match_device_types_to_netbox_templates(self):
+        device_types = self.get_device_types()
+        unmatched = {}
+        matched = {}
+
+        for device_type_key in device_types.keys():
+            if device_type_key in device_type_map_preseed["by_key_name"].keys():
+                # print("found device type for {}".format(device_type_key))
+                matched[device_type_key] = device_types[device_type_key]
+                matched[device_type_key]["device_template_data"] = device_type_map_preseed["by_key_name"][device_type_key]
+            else:
+                # print("did not find device type {} in hardware_map.yaml".format(device_type_key))
+                unmatched[device_type_key] = device_types[device_type_key]
+        print("device templates found for importing: ")
+        pp.pprint(matched)
+
+        if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
+            if len(unmatched) > 0:
+                print(
+                    "the following device types have no matching device templates. please update hardware_map.yml or set SKIP_DEVICES_WITHOUT_TEMPLATE to True in conf file"
+                )
+                for unmatched_device_type in sorted(unmatched.keys()):
+                    print(unmatched_device_type)
+                exit(22)
 
     @staticmethod
     def add_hardware(height, depth, name):
@@ -1886,6 +1919,10 @@ if __name__ == "__main__":
     logger.addHandler(fh)
     logger.addHandler(ch)
 
+    # Load lookup map of yaml data
+    with open("hardware_map.yaml", "r") as stream:
+        device_type_map_preseed = yaml.safe_load(stream)
+
     netbox = pynetbox.api(config["NetBox"]["NETBOX_HOST"], token=config["NetBox"]["NETBOX_TOKEN"])
 
     tenant_groups = netbox.tenancy.tenant_groups.all()
@@ -1914,7 +1951,7 @@ if __name__ == "__main__":
     if config["Migrate"]["HARDWARE"] == "True":
         print("running device types")
         # racktables.get_hardware()
-        racktables.get_device_types()
+        racktables.match_device_types_to_netbox_templates()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
