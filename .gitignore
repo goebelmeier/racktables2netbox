@@ -111,3 +111,7 @@ venv.bak/
 .mypy_cache/
 hardware_map.yaml
 .vscode/*
+
+.DS_Store
+
+custom_device_templates/*
