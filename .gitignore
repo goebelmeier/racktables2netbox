@@ -115,3 +115,4 @@ hardware_map.yaml
 .DS_Store
 
 custom_device_templates/*
+netbox-devicetypes/
