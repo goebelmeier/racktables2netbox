@@ -402,10 +402,11 @@ class NETBOX(object):
     #     logger.info('Posting PDU to rack {}'.format(rack))
     #     self.uploader(data, url)
 
-    # def post_hardware(self, data):
-    #     url = self.base_url + '/api/1.0/hardwares/'
-    #     logger.info('Adding hardware data to {}'.format(url))
-    #     self.uploader(data, url)
+    # def post_hardware(self, data, nb):
+    #     all_device_types = {str(item): item for item in nb.dcim.device_types.all()}
+    #     pp.pprint(all_device_types)
+    #     pp.pprint(data)
+    #     exit(2)
 
     # def post_device2rack(self, data):
     #     url = self.base_url + '/api/1.0/device/rack/'
@@ -1202,7 +1203,7 @@ class DB(object):
             self.con = None
         return resp
 
-    def get_infrastructure(self):
+    def get_infrastructure(self, do_updates=True):
         """
         Get locations, rows and racks from RT, convert them to buildings and rooms and send to uploader.
         :return:
@@ -1527,6 +1528,11 @@ class DB(object):
                 return None, None, None, None
         else:
             return None, None, None, None
+    def remove_links(self, item):
+        if "[[" in item and "|" in item:
+            item = item.replace("[[", "").strip()
+            item = item.split("|")[0].strip()
+        return item
 
     def get_device_types(self):
         if not self.hardware:
@@ -1593,6 +1599,7 @@ class DB(object):
             hwddata.update({"depth": depth})
         if name:
             hwddata.update({"name": name[:48]})
+        print(hwddata)
             # netbox.post_hardware(hwddata)
 
     def get_vmhosts(self):
@@ -1603,8 +1610,8 @@ class DB(object):
             q = """SELECT id, name FROM Object WHERE objtype_id='1505'"""
             cur.execute(q)
             raw = cur.fetchall()
-            cur.close()
-            self.con = None
+        cur.close()
+        self.con = None
         dev = {}
         for rec in raw:
             host_id = int(rec[0])
@@ -1625,8 +1632,8 @@ class DB(object):
             q = """SELECT id, name FROM Object WHERE objtype_id='1502'"""
             cur.execute(q)
             raw = cur.fetchall()
-            cur.close()
-            self.con = None
+        cur.close()
+        self.con = None
         dev = {}
         for rec in raw:
             host_id = int(rec[0])
@@ -1653,59 +1660,71 @@ class DB(object):
                     FROM EntityLink WHERE child_entity_type='object' AND parent_entity_type = 'object'"""
             cur.execute(q)
             raw = cur.fetchall()
-            cur.close()
-            self.con = None
+        cur.close()
+        self.con = None
         for rec in raw:
             container_id, object_id = rec
             self.container_map.update({object_id: container_id})
 
     def get_devices(self):
+        self.get_vmhosts()
+        self.get_chassis()
+        self.all_ports = self.get_ports()
         if not self.con:
             self.connect()
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = "SELECT id FROM Object"
+            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]}"""
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
-
-        with self.con:
-            for dev_id in ids:
-                q = (
-                    """Select
-                            Object.objtype_id,
-                            Object.name as Description,
-                            Object.label as Name,
-                            Object.asset_no as Asset,
-                            Attribute.name as Name,
-                            Dictionary.dict_value as Type,
-                            Object.comment as Comment,
-                            RackSpace.rack_id as RackID,
-                            Rack.name as rack_name,
-                            Rack.row_name,
-                            Rack.location_id,
-                            Rack.location_name,
-                            Location.parent_name
-
-                            FROM Object
-                            LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
-                            LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
-                            LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
-                            LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
-                            LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
-                            LEFT JOIN Location ON Rack.location_id = Location.id
-                            WHERE Object.id = %s
-                            AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) """
-                    + config["Misc"]["device_data_filter"] % dev_id
-                )
-
-                cur.execute(q)
-                data = cur.fetchall()
-                if data:  # RT objects that do not have data are locations, racks, rows etc...
-                    self.process_data(data, dev_id)
         cur.close()
         self.con = None
+        
+
+
+        for dev_id in ids:
+            if not self.con:
+                self.connect()
+                cur = self.con.cursor()
+            q = (
+                f"""Select
+                        Object.objtype_id,
+                        Object.name as Description,
+                        Object.label as Name,
+                        Object.asset_no as Asset,
+                        Attribute.name as Name,
+                        Dictionary.dict_value as Type,
+                        Object.comment as Comment,
+                        RackSpace.rack_id as RackID,
+                        Rack.name as rack_name,
+                        Rack.row_name,
+                        Rack.location_id,
+                        Rack.location_name,
+                        Location.parent_name
+
+                        FROM Object
+                        LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
+                        LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+                        LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
+                        LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                        LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
+                        LEFT JOIN Location ON Rack.location_id = Location.id
+                        LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
+                        WHERE Object.id = {dev_id}
+                        AND Object.objtype_id not in (2,9,1505,1560,1561,1562,50275) 
+                        {config["Misc"]["device_data_filter"]}"""
+            )
+
+            cur.execute(q)
+            data = cur.fetchall()
+            # print(json.dumps(data))
+            cur.close()
+            self.con = None
+            if data:  # RT objects that do not have data are locations, racks, rows etc...
+                self.process_data(data, dev_id)
+            
 
     def process_data(self, data, dev_id):
         devicedata = {}
@@ -1717,7 +1736,7 @@ class DB(object):
         rrack_id = None
         floor = None
         dev_type = 0
-
+        
         for x in data:
             (
                 dev_type,
@@ -1734,25 +1753,29 @@ class DB(object):
                 rlocation_name,
                 rparent_name,
             ) = x
+            print(x)
 
-            name = x[1]
+            name = self.remove_links(x[1])
             note = x[-7]
 
             if "Operating System" in x:
                 opsys = x[-8]
+                opsys = self.remove_links(opsys)
                 if "%GSKIP%" in opsys:
                     opsys = opsys.replace("%GSKIP%", " ")
                 if "%GPASS%" in opsys:
                     opsys = opsys.replace("%GPASS%", " ")
-            if "SW type" in x:
+            elif "SW type" in x:
                 opsys = x[-8]
+                opsys = self.remove_links(opsys)
                 if "%GSKIP%" in opsys:
                     opsys = opsys.replace("%GSKIP%", " ")
                 if "%GPASS%" in opsys:
                     opsys = opsys.replace("%GPASS%", " ")
 
-            if "Server Hardware" in x:
+            elif "Server Hardware" in x:
                 hardware = x[-8]
+                hardware = self.remove_links(hardware)
                 if "%GSKIP%" in hardware:
                     hardware = hardware.replace("%GSKIP%", " ")
                 if "%GPASS%" in hardware:
@@ -1760,20 +1783,29 @@ class DB(object):
                 if "\t" in hardware:
                     hardware = hardware.replace("\t", " ")
 
-            if "HW type" in x:
+            elif "HW type" in x:
                 hardware = x[-8]
+                hardware = self.remove_links(hardware)
                 if "%GSKIP%" in hardware:
                     hardware = hardware.replace("%GSKIP%", " ")
                 if "%GPASS%" in hardware:
                     hardware = hardware.replace("%GPASS%", " ")
                 if "\t" in hardware:
                     hardware = hardware.replace("\t", " ")
-            if note:
-                note = note.replace("\n", " ")
-                if "&lt;" in note:
-                    note = note.replace("&lt;", "")
-                if "&gt;" in note:
-                    note = note.replace("&gt;", "")
+            else:
+                if not "extra_fields" in devicedata.keys():
+                    devicedata["extra_fields"] = {}
+                devicedata["extra_fields"][rattr_name] = rtype
+            if rasset:
+                devicedata['asset_tag'] = rasset
+
+            # if note:
+            #     # note = note.replace("\n", " ")
+            #     if "&lt;" in note:
+            #         note = note.replace("&lt;", "")
+            #     if "&gt;" in note:
+            #         note = note.replace("&gt;", "")
+
 
         if name:
             # set device data
@@ -1797,6 +1829,7 @@ class DB(object):
                     devicedata.update({"type": "blade"})
                     devicedata.update({"blade_host": blade_host_name})
                 except KeyError:
+                    # print("ERROR: failed to track down blade info")
                     pass
             elif dev_type == 1504:
                 devicedata.update({"type": "virtual"})
@@ -1806,23 +1839,27 @@ class DB(object):
                     vm_host_name = self.vm_hosts[vm_host_id]
                     devicedata.update({"virtual_host": vm_host_name})
                 except KeyError:
+                    print("ERROR: failed to track down virtual host info")
                     pass
+            
 
             d42_rack_id = None
             # except VMs
             if dev_type != 1504:
                 if rrack_id:
-                    d42_rack_id = self.rack_id_map[rrack_id]
+                    rack_detail = dict( py_netbox.dcim.racks.get(name=rrack_name) )
+                    rack_id = rack_detail['id']
+                    devicedata.update({"rack": rack_id})
+                    d42_rack_id = rack_id
 
-                # if the device is mounted in RT, we will try to add it to D42 hardwares.
-                floor, height, depth, mount = self.get_hardware_size(dev_id)
-                if floor is not None:
-                    floor = int(floor) + 1
-                else:
-                    floor = "auto"
-                if not hardware:
-                    hardware = "generic" + str(height) + "U"
-                self.add_hardware(height, depth, hardware)
+                    # if the device is mounted in RT, we will try to add it to D42 hardwares.
+                    position, height, depth, mount = self.get_hardware_size(dev_id)
+                    devicedata.update({"position": position})
+                    devicedata.update({"face": mount})
+            netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
+            devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
+            devicedata["device_role"] = 1
+            devicedata['device_type'] = 22
 
             # upload device
             if devicedata:
@@ -1834,8 +1871,9 @@ class DB(object):
                     devicedata.update({"type": "physical"})
 
                 # netbox.post_device(devicedata)
-                print(devicedata)
-                exit(1)
+                print(json.dumps(devicedata))
+                py_netbox.dcim.devices.create(devicedata)
+                # exit(1)
 
                 # update ports
                 if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
@@ -1855,7 +1893,7 @@ class DB(object):
                                 switchport_data.update({"remote_device": device_name})
                                 # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
-                                netbox.post_switchport(switchport_data)
+                                # netbox.post_switchport(switchport_data)
 
                                 # reverse connection
                                 device_name = self.get_device_by_port(get_links[0])
@@ -1868,28 +1906,29 @@ class DB(object):
                                 switchport_data.update({"remote_device": name})
                                 switchport_data.update({"remote_port": item[0]})
 
-                                netbox.post_switchport(switchport_data)
-                            else:
-                                netbox.post_switchport(switchport_data)
+                                # netbox.post_switchport(switchport_data)
+                            # else:
+                                # netbox.post_switchport(switchport_data)
+                            
 
-                # if there is a device, we can try to mount it to the rack
-                if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
-                    device2rack.update({"device": name})
-                    if hardware:
-                        device2rack.update({"hw_model": hardware[:48]})
-                    device2rack.update({"rack_id": d42_rack_id})
-                    device2rack.update({"start_at": floor})
-
-                    netbox.post_device2rack(device2rack)
-                else:
-                    if dev_type != 1504 and d42_rack_id is not None:
-                        msg = (
-                            '\n-----------------------------------------------------------------------\
-                        \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
-                        \n\tFloor returned from "get_hardware_size" function was: %s'
-                            % (name, dev_id, str(floor))
-                        )
-                        logger.info(msg)
+                # # if there is a device, we can try to mount it to the rack
+                # if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
+                #     device2rack.update({"device": name})
+                #     if hardware:
+                #         device2rack.update({"hw_model": hardware[:48]})
+                #     device2rack.update({"rack_id": d42_rack_id})
+                #     device2rack.update({"start_at": floor})
+                #     print(device2rack)
+                #     # netbox.post_device2rack(device2rack)
+                # else:
+                #     if dev_type != 1504 and d42_rack_id is not None:
+                #         msg = (
+                #             '\n-----------------------------------------------------------------------\
+                #         \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
+                #         \n\tFloor returned from "get_hardware_size" function was: %s'
+                #             % (name, dev_id, str(floor))
+                #         )
+                #         logger.info(msg)
             else:
                 msg = (
                     "\n-----------------------------------------------------------------------\
@@ -1923,6 +1962,8 @@ class DB(object):
             )
             cur.execute(q)
         data = cur.fetchall()
+        cur.close()
+        self.con = None
 
         if config["Log"]["DEBUG"]:
             msg = ("Device to IP", str(data))
@@ -2158,7 +2199,8 @@ class DB(object):
                     LEFT JOIN PortOuterInterface ON PortOuterInterface.id = type"""
             cur.execute(q)
         data = cur.fetchall()
-
+        cur.close()
+        self.con = None
         if data:
             return data
         else:
@@ -2193,6 +2235,8 @@ class DB(object):
             )
             cur.execute(q)
         data = cur.fetchone()
+        cur.close()
+        self.con = None
         if data:
             return data[0]
         else:
@@ -2213,10 +2257,13 @@ class DB(object):
             )
             cur.execute(q)
         data = cur.fetchall()
-
+        cur.close()
+        self.con = None
         if data:
             return data[0]
         else:
+            if not self.con:
+                self.connect()
             with self.con:
                 cur = self.con.cursor()
                 q = (
@@ -2229,7 +2276,8 @@ class DB(object):
                 )
                 cur.execute(q)
             data = cur.fetchall()
-
+            cur.close()
+            self.con = None
             if data:
                 return data[0]
             else:
@@ -2314,9 +2362,10 @@ if __name__ == "__main__":
         racktables.get_ips()
         racktables.get_ips_v6()
     if config["Migrate"]["HARDWARE"] == "True":
-        print("running device types")
-        # racktables.get_hardware()
-        racktables.get_device_types()
+        # print("running device types")
+        # racktables.get_device_types()
+        print("running manage hardware")
+        racktables.get_devices()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
