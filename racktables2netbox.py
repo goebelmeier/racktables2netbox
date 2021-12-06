@@ -1243,6 +1243,7 @@ class DB(object):
             attrib_type, attrib_name = line
             attributes.append({"name": attrib_name, "type": attrib_type})
         attributes.append({"name": "rt_id", "type": "text"}) # custom field for racktables source objid
+        attributes.append({"name": "Visible label", "type": "text"})
 
         netbox.createCustomFields(attributes)
 
@@ -1814,6 +1815,8 @@ class DB(object):
     def get_devices(self):
         self.get_vmhosts()
         self.get_chassis()
+        if not self.tag_map:
+            self.create_tag_map()
         self.all_ports = self.get_ports()
         if not netbox.device_types:
             netbox.device_types = {str(item.slug): dict(item) for item in py_netbox.dcim.device_types.all()}
@@ -1955,6 +1958,7 @@ class DB(object):
             if rasset:
                 devicedata["asset_tag"] = rasset
             devicedata["custom_fields"]['rt_id'] = str(rt_object_id)
+            devicedata["custom_fields"]["Visible label"] = str(rname)
 
             if note:
                 note = note.replace("\n", "\n\n") # markdown. all new lines need two new lines
@@ -1962,7 +1966,17 @@ class DB(object):
             #         note = note.replace("&lt;", "")
             #     if "&gt;" in note:
             #         note = note.replace("&gt;", "")
-        
+        rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]['rt_id']))
+        # print(rt_tags)
+        tags = []
+        # print (self.tag_map)
+        for tag in rt_tags:
+            try:
+                # print(tag)
+                tags.append(self.tag_map[tag]["id"])
+            except:
+                logger.debug("failed to find tag {} in lookup map".format(tag))
+        devicedata['tags'] = tags
         if name:
             # set device data
             devicedata.update({"name": name})
