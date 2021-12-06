@@ -1244,6 +1244,8 @@ class DB(object):
             attributes.append({"name": attrib_name, "type": attrib_type})
         attributes.append({"name": "rt_id", "type": "text"}) # custom field for racktables source objid
         attributes.append({"name": "Visible label", "type": "text"})
+        attributes.append({"name": "SW type", "type": "text"})
+        attributes.append({"name": "Operating System", "type": "text"})
 
         netbox.createCustomFields(attributes)
 
@@ -1895,7 +1897,7 @@ class DB(object):
                 rname,
                 rasset,
                 rattr_name,
-                rtype,
+                dict_dictvalue,
                 rcomment,
                 rrack_id,
                 rrack_name,
@@ -1915,22 +1917,25 @@ class DB(object):
                 note = rname
 
             if "Operating System" in x:
-                opsys = rtype
+                opsys = dict_dictvalue
                 opsys = self.remove_links(opsys)
                 if "%GSKIP%" in opsys:
                     opsys = opsys.replace("%GSKIP%", " ")
                 if "%GPASS%" in opsys:
                     opsys = opsys.replace("%GPASS%", " ")
+                devicedata["custom_fields"]['Operating System'] = str(opsys)
             elif "SW type" in x:
-                opsys = rtype
+                opsys = dict_dictvalue
                 opsys = self.remove_links(opsys)
                 if "%GSKIP%" in opsys:
                     opsys = opsys.replace("%GSKIP%", " ")
                 if "%GPASS%" in opsys:
                     opsys = opsys.replace("%GPASS%", " ")
+                devicedata["custom_fields"]['SW type'] = str(opsys)
+                
 
             elif "Server Hardware" in x:
-                hardware = rtype
+                hardware = dict_dictvalue
                 hardware = self.remove_links(hardware)
                 if "%GSKIP%" in hardware:
                     hardware = hardware.replace("%GSKIP%", " ")
@@ -1940,7 +1945,7 @@ class DB(object):
                     hardware = hardware.replace("\t", " ")
 
             elif "HW type" in x:
-                hardware = rtype
+                hardware = dict_dictvalue
                 hardware = self.remove_links(hardware)
                 if "%GSKIP%" in hardware:
                     hardware = hardware.replace("%GSKIP%", " ")
@@ -1949,10 +1954,14 @@ class DB(object):
                 if "\t" in hardware:
                     hardware = hardware.replace("\t", " ")
             elif "BiosRev" in x:
-                biosrev =  self.remove_links(rtype)
+                biosrev =  self.remove_links(dict_dictvalue)
                 devicedata["custom_fields"]['BiosRev'] = biosrev
             else:
-                cleaned_val = netbox.cleanup_attrib_value(attrib_value, attrib_type)
+                if attrib_type == "dict":
+                    attrib_value_unclean = dict_dictvalue
+                else:
+                    attrib_value_unclean = attrib_value
+                cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
                 # print(cleaned_val)
                 devicedata["custom_fields"][rattr_name] = cleaned_val
             if rasset:
