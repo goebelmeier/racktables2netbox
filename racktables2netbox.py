@@ -929,6 +929,7 @@ class DB(object):
         self.rack_id_map = {}
         self.container_map = {}
         self.building_room_map = {}
+        self.skipped_devices = {}
 
     def connect(self):
         """
@@ -1815,6 +1816,7 @@ class DB(object):
             self.container_map.update({object_id: container_id})
 
     def get_devices(self):
+        
         self.get_vmhosts()
         self.get_chassis()
         if not self.tag_map:
@@ -1827,7 +1829,7 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]}  """
+            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
@@ -1866,7 +1868,7 @@ class DB(object):
                         LEFT JOIN Location ON Rack.location_id = Location.id
                         LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
                         WHERE Object.id = {dev_id}
-                        AND Object.objtype_id not in (2,9,1504,1505,1560,1561,1562,50275) 
+                        AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
                         {config["Misc"]["device_data_filter"]} """
             logger.debug(q)
 
@@ -1877,6 +1879,34 @@ class DB(object):
             self.con = None
             if data:  # RT objects that do not have data are locations, racks, rows etc...
                 self.process_data(data, dev_id)
+            logger.debug('skipped devices:')
+            pp.pprint(self.skipped_devices)
+
+    def get_obj_location(self, obj_id):
+        if not self.con:
+            self.connect()
+
+        cur = self.con.cursor()
+        # get object IDs
+        q = f"""
+            SELECT Rack.id,Rack.name,Rack.row_id,Rack.row_name,Rack.location_id,Rack.location_name 
+            FROM EntityLink 
+            left join Rack on EntityLink.parent_entity_id = Rack.id 
+            WHERE parent_entity_type = 'rack' 
+            AND child_entity_type = 'object' 
+            AND child_entity_id = {obj_id}
+        """
+        cur.execute(q)
+        idsx = cur.fetchall()
+        try:
+            resp = [x for x in idsx][0]
+        except:
+            resp = [None,None,None,None,None,"Unknown"]
+
+        cur.close()
+        self.con = None
+        return resp
+        
 
     def process_data(self, data, dev_id):
         devicedata = {}
@@ -1889,6 +1919,7 @@ class DB(object):
         rrack_id = None
         floor = None
         dev_type = 0
+        
 
         for x in data:
             (   rt_object_id,
@@ -1912,7 +1943,10 @@ class DB(object):
 
             name = self.remove_links(rdesc)
             if rcomment:
-                note = rname+'\n'+rcomment
+                try:
+                    note = rname+'\n'+rcomment
+                except:
+                    note = rcomment
             else:
                 note = rname
 
@@ -1957,13 +1991,14 @@ class DB(object):
                 biosrev =  self.remove_links(dict_dictvalue)
                 devicedata["custom_fields"]['BiosRev'] = biosrev
             else:
-                if attrib_type == "dict":
-                    attrib_value_unclean = dict_dictvalue
-                else:
-                    attrib_value_unclean = attrib_value
-                cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
-                # print(cleaned_val)
-                devicedata["custom_fields"][rattr_name] = cleaned_val
+                if not rattr_name == None:
+                    if attrib_type == "dict":
+                        attrib_value_unclean = dict_dictvalue
+                    else:
+                        attrib_value_unclean = attrib_value
+                    cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
+                    # print(cleaned_val)
+                    devicedata["custom_fields"][rattr_name] = cleaned_val
             if rasset:
                 devicedata["asset_tag"] = rasset
             devicedata["custom_fields"]['rt_id'] = str(rt_object_id)
@@ -1971,10 +2006,17 @@ class DB(object):
 
             if note:
                 note = note.replace("\n", "\n\n") # markdown. all new lines need two new lines
-            #     if "&lt;" in note:
-            #         note = note.replace("&lt;", "")
-            #     if "&gt;" in note:
-            #         note = note.replace("&gt;", "")
+
+        # 0u device logic
+        zero_location_obj_data = None
+        if rlocation_name == None:
+            zero_location_obj_data = self.get_obj_location(rt_object_id)
+            rlocation_name = zero_location_obj_data[5]
+            rrack_id = zero_location_obj_data[0]
+            rrack_name = zero_location_obj_data[1]
+            print(zero_location_obj_data)
+            print(f"obj location (probably 0u device): {rlocation_name}")
+
         rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]['rt_id']))
         # print(rt_tags)
         tags = []
@@ -2023,6 +2065,8 @@ class DB(object):
 
             d42_rack_id = None
             # except VMs
+            print("here")
+            print(rrack_id)
             if dev_type != 1504:
                 if rrack_id:
                     rack_detail = dict(py_netbox.dcim.racks.get(name=rrack_name))
@@ -2034,6 +2078,12 @@ class DB(object):
                     position, height, depth, mount = self.get_hardware_size(dev_id)
                     devicedata.update({"position": position})
                     devicedata.update({"face": mount})
+                    # 0u device logic
+                    if height == None and not zero_location_obj_data == None:
+                        height = 0
+                else:
+                    height = 0
+
             netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
             devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
             devicedata["device_role"] = 1
@@ -2054,6 +2104,10 @@ class DB(object):
                         logger.debug("device with no matching template by slugname {nb_slug} found")
                         exit(112)
             else:
+                if not devicedata['hardware'] in self.skipped_devices.keys():
+                    self.skipped_devices[devicedata['hardware']] = 1
+                else:
+                    self.skipped_devices[devicedata['hardware']] = self.skipped_devices[devicedata['hardware']] + 1
                 logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
 
             # upload device
