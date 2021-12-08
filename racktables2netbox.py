@@ -1655,7 +1655,7 @@ class DB(object):
                     interior += 1
                 elif tag == "rear":
                     rear += 1
-                    mount = "rear"
+            
 
             if front and interior and rear:  # full depth
                 height = front
@@ -1688,9 +1688,13 @@ class DB(object):
             elif rear and not interior and not front:
                 height = rear
                 depth = 2
+                mount = "rear"
                 if height > 1:
                     floor = floor - (height - 1)
                 return floor, height, depth, mount
+            elif interior and not rear and not front:
+                logger.warn("interior only mounted device. this is not nb compatible")
+                return None, None, None, None
             else:
                 return None, None, None, None
         else:
