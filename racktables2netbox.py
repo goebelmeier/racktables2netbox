@@ -403,8 +403,8 @@ class NETBOX(object):
             device = py_netbox.dcim.devices.get(asset_tag=data["asset_tag"])
         elif match_type == "name":
             device = py_netbox.dcim.devices.get(name=data["name"])
-        print(device.update(data))
-        exit(1)
+        logger.debug("sending updates (if any) to nb")
+        device.update(data)
 
     # def post_location(self, data):
     #     url = self.base_url + '/api/1.0/location/'
@@ -1655,6 +1655,7 @@ class DB(object):
                     interior += 1
                 elif tag == "rear":
                     rear += 1
+                    mount = "rear"
 
             if front and interior and rear:  # full depth
                 height = front
@@ -2159,8 +2160,10 @@ class DB(object):
                         # 0u device logic
                         if height == None and not zero_location_obj_data == None:
                             height = 0
+                            depth = 0
                     else:
                         height = 0
+                        depth = 0
 
                 netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
                 devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
@@ -2169,7 +2172,14 @@ class DB(object):
                 if not "hardware" in devicedata.keys():
                     if height == None:
                         height = 0
-                    devicedata["hardware"] = f"generic_{height}u_device"
+                    generic_depth = ""
+
+                    if depth:
+                        print("depth:")
+                        print(depth)
+                        if depth == 2:
+                            generic_depth = "short_"
+                    devicedata["hardware"] = f"generic_{height}u_{generic_depth}device"
                 logger.debug(devicedata["hardware"])
                 if str(devicedata["hardware"]) in device_type_map_preseed["by_key_name"].keys():
                     logger.debug("hardware match")
