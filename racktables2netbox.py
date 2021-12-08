@@ -22,7 +22,6 @@ import copy
 import datetime
 
 
-
 class Migrator:
     def slugify(self, text):
         return slugify.slugify(text, max_length=50)
@@ -371,9 +370,9 @@ class NETBOX(object):
 
     def post_device(self, data, py_netbox):
         needs_updating = False
-        device_check = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data['custom_fields']['rt_id'])]
+        device_check = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
 
-        if len(device_check) == 1: 
+        if len(device_check) == 1:
             logger.debug("device already in netbox. sending to update checker")
             needs_updating = True
             matched_by = "cf_rt_id"
@@ -396,18 +395,16 @@ class NETBOX(object):
             if needs_updating:  # update existing device
                 self.update_device(data, matched_by, py_netbox)
 
-
     def update_device(self, data, match_type, py_netbox):
-        
+
         if match_type == "cf_rt_id":
-            device = py_netbox.dcim.devices.get(cf_rt_id=data['custom_fields']['rt_id'])
+            device = py_netbox.dcim.devices.get(cf_rt_id=data["custom_fields"]["rt_id"])
         elif match_type == "asset_tag":
-            device = py_netbox.dcim.devices.get(asset_tag=data['asset_tag'])
+            device = py_netbox.dcim.devices.get(asset_tag=data["asset_tag"])
         elif match_type == "name":
-            device = py_netbox.dcim.devices.get(name=data['name'])
+            device = py_netbox.dcim.devices.get(name=data["name"])
         print(device.update(data))
         exit(1)
-
 
     # def post_location(self, data):
     #     url = self.base_url + '/api/1.0/location/'
@@ -835,26 +832,25 @@ class NETBOX(object):
                 logger.debug("device-bays")
                 self.createDeviceBays(deviceType["device-bays"], dt.id, nb)
 
-
     def change_attrib_type(self, attrib):
-        if attrib in ['uint', 'int', 'float']:
-            attrib = 'text'
-        if attrib in ['bool']:
-            attrib = 'boolean'
-        if attrib in ['string', 'dict']:
-            attrib = 'text'
+        if attrib in ["uint", "int", "float"]:
+            attrib = "text"
+        if attrib in ["bool"]:
+            attrib = "boolean"
+        if attrib in ["string", "dict"]:
+            attrib = "text"
         return attrib
-    
+
     def cleanup_attrib_value(self, attrib_val, attrib_type):
-        if attrib_type in ['uint', 'int', 'float']:
+        if attrib_type in ["uint", "int", "float"]:
             return str(attrib_val)
-        if attrib_type in ['bool']:
+        if attrib_type in ["bool"]:
             return bool(attrib_val)
-        if attrib_type in ['string', 'dict', 'text']:
+        if attrib_type in ["string", "dict", "text"]:
             return str(attrib_val)
-        if attrib_type == 'date':
+        if attrib_type == "date":
             datetime_time = datetime.datetime.fromtimestamp(int(attrib_val))
-            return datetime_time.strftime('%Y-%m-%d')
+            return datetime_time.strftime("%Y-%m-%d")
         return str(attrib_val)
 
     def createCustomFields(self, attributes):
@@ -870,7 +866,7 @@ class NETBOX(object):
                 logger.debug(f"Custom Field Exists: {dt.name} - " + f"{dt.type}")
             except KeyError:
                 try:
-                    custom_field["type"] = self.change_attrib_type(  custom_field["type"] )
+                    custom_field["type"] = self.change_attrib_type(custom_field["type"])
                     custom_field["content_types"] = [
                         "circuits.circuit",
                         "circuits.circuittype",
@@ -961,7 +957,7 @@ class DB(object):
             passwd=config["MySQL"]["DB_PWD"],
         )
 
-        self.con.query('SET SESSION interactive_timeout=60')
+        self.con.query("SET SESSION interactive_timeout=60")
         # self.con.query('SET SESSION wait_timeout=3600')
 
     @staticmethod
@@ -1263,7 +1259,7 @@ class DB(object):
         for line in tags:
             attrib_type, attrib_name = line
             attributes.append({"name": attrib_name, "type": attrib_type})
-        attributes.append({"name": "rt_id", "type": "text"}) # custom field for racktables source objid
+        attributes.append({"name": "rt_id", "type": "text"})  # custom field for racktables source objid
         attributes.append({"name": "Visible label", "type": "text"})
         attributes.append({"name": "SW type", "type": "text"})
         attributes.append({"name": "Operating System", "type": "text"})
@@ -1836,7 +1832,7 @@ class DB(object):
             self.container_map.update({object_id: container_id})
 
     def get_devices(self):
-        
+
         self.get_vmhosts()
         self.get_chassis()
         if not self.tag_map:
@@ -1944,7 +1940,7 @@ class DB(object):
                 self.con = None
                 if data:  # RT objects that do not have data are locations, racks, rows etc...
                     self.process_data(data, dev_id)
-        logger.debug('skipped devices:')
+        logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
 
     def get_obj_location(self, obj_id):
@@ -1966,12 +1962,11 @@ class DB(object):
         try:
             resp = [x for x in idsx][0]
         except:
-            resp = [None,None,None,None,None,"Unknown"]
+            resp = [None, None, None, None, None, "Unknown"]
 
         cur.close()
         self.con = None
         return resp
-        
 
     def process_data(self, data, dev_id):
         devicedata = {}
@@ -1986,10 +1981,11 @@ class DB(object):
         dev_type = 0
         process_object = True
         bad_tag = False
-        
+
         if process_object:
             for x in data:
-                (   rt_object_id,
+                (
+                    rt_object_id,
                     dev_type,
                     rdesc,
                     rname,
@@ -2004,14 +2000,14 @@ class DB(object):
                     rlocation_name,
                     rparent_name,
                     attrib_value,
-                    attrib_type
+                    attrib_type,
                 ) = x
                 logger.debug(x)
 
                 name = self.remove_links(rdesc)
                 if rcomment:
                     try:
-                        note = rname+'\n'+rcomment
+                        note = rname + "\n" + rcomment
                     except:
                         note = rcomment
                 else:
@@ -2024,7 +2020,7 @@ class DB(object):
                         opsys = opsys.replace("%GSKIP%", " ")
                     if "%GPASS%" in opsys:
                         opsys = opsys.replace("%GPASS%", " ")
-                    devicedata["custom_fields"]['Operating System'] = str(opsys)
+                    devicedata["custom_fields"]["Operating System"] = str(opsys)
                 elif "SW type" in x:
                     opsys = dict_dictvalue
                     opsys = self.remove_links(opsys)
@@ -2032,8 +2028,7 @@ class DB(object):
                         opsys = opsys.replace("%GSKIP%", " ")
                     if "%GPASS%" in opsys:
                         opsys = opsys.replace("%GPASS%", " ")
-                    devicedata["custom_fields"]['SW type'] = str(opsys)
-                    
+                    devicedata["custom_fields"]["SW type"] = str(opsys)
 
                 elif "Server Hardware" in x:
                     hardware = dict_dictvalue
@@ -2055,8 +2050,8 @@ class DB(object):
                     if "\t" in hardware:
                         hardware = hardware.replace("\t", " ")
                 elif "BiosRev" in x:
-                    biosrev =  self.remove_links(dict_dictvalue)
-                    devicedata["custom_fields"]['BiosRev'] = biosrev
+                    biosrev = self.remove_links(dict_dictvalue)
+                    devicedata["custom_fields"]["BiosRev"] = biosrev
                 else:
                     if not rattr_name == None:
                         if attrib_type == "dict":
@@ -2066,20 +2061,19 @@ class DB(object):
                         cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
                         # print(cleaned_val)
                         devicedata["custom_fields"][rattr_name] = cleaned_val
-                        print(config['Misc']['CUSTOM_FIELD_MAPPER'])
-                        config_cust_field_map = json.loads(config['Misc']['CUSTOM_FIELD_MAPPER'])
+                        config_cust_field_map = json.loads(config["Misc"]["CUSTOM_FIELD_MAPPER"])
                         if rattr_name in config_cust_field_map.keys():
                             devicedata[config_cust_field_map[rattr_name]] = cleaned_val
                 if rasset:
                     devicedata["asset_tag"] = rasset
-                devicedata["custom_fields"]['rt_id'] = str(rt_object_id)
+                devicedata["custom_fields"]["rt_id"] = str(rt_object_id)
                 devicedata["custom_fields"]["Visible label"] = str(rname)
 
                 if note:
-                    note = note.replace("\n", "\n\n") # markdown. all new lines need two new lines
+                    note = note.replace("\n", "\n\n")  # markdown. all new lines need two new lines
 
-            if not 'tags' in devicedata.keys():
-                rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]['rt_id']))
+            if not "tags" in devicedata.keys():
+                rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]["rt_id"]))
                 tags = []
                 # print (self.tag_map)
 
@@ -2089,13 +2083,12 @@ class DB(object):
                         tags.append(self.tag_map[tag]["id"])
                     except:
                         logger.debug("failed to find tag {} in lookup map".format(tag))
-                devicedata['tags'] = tags
+                devicedata["tags"] = tags
 
-            
             bad_tags = []
-            for tag_check in config['Misc']['SKIP_OBJECTS_WITH_TAGS'].strip().split(','):
+            for tag_check in config["Misc"]["SKIP_OBJECTS_WITH_TAGS"].strip().split(","):
                 logger.debug(f"checking for tag '{tag_check}'")
-                if self.tag_map[tag_check]["id"] in devicedata['tags']:
+                if self.tag_map[tag_check]["id"] in devicedata["tags"]:
                     logger.debug(f"tag matched by id")
                     bad_tag = True
                     bad_tags.append(tag_check)
@@ -2176,7 +2169,7 @@ class DB(object):
                 if not "hardware" in devicedata.keys():
                     if height == None:
                         height = 0
-                    devicedata['hardware'] = f"generic_{height}u_device"
+                    devicedata["hardware"] = f"generic_{height}u_device"
                 logger.debug(devicedata["hardware"])
                 if str(devicedata["hardware"]) in device_type_map_preseed["by_key_name"].keys():
                     logger.debug("hardware match")
@@ -2191,10 +2184,10 @@ class DB(object):
                             logger.debug("device with no matching template by slugname {nb_slug} found")
                             exit(112)
                 else:
-                    if not devicedata['hardware'] in self.skipped_devices.keys():
-                        self.skipped_devices[devicedata['hardware']] = 1
+                    if not devicedata["hardware"] in self.skipped_devices.keys():
+                        self.skipped_devices[devicedata["hardware"]] = 1
                     else:
-                        self.skipped_devices[devicedata['hardware']] = self.skipped_devices[devicedata['hardware']] + 1
+                        self.skipped_devices[devicedata["hardware"]] = self.skipped_devices[devicedata["hardware"]] + 1
                     logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
 
                 # upload device
@@ -2277,10 +2270,8 @@ class DB(object):
                     msg2 = f"Device with RT id={dev_id} cannot be migrated because it has bad tags."
                 else:
                     msg2 = f"Device with RT id={dev_id} cannot be migrated because it has no name."
-                msg = (
-                    f"\n-----------------------------------------------------------------------\
+                msg = f"\n-----------------------------------------------------------------------\
                 \n[!] INFO: {msg2} "
-                )
                 logger.info(msg)
 
     def get_device_to_ip(self):
