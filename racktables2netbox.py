@@ -371,26 +371,43 @@ class NETBOX(object):
 
     def post_device(self, data, py_netbox):
         needs_updating = False
-        logger.debug(data)
-        try:
-            py_netbox.dcim.devices.create(data)
-        except pynetbox.RequestError as e:
-            logger.debug("matched request error")
-            pp.pprint(e.args)
-            if "device with this Asset tag already exists" in str(e):
-                logger.debug("matched by asset tag")
-                matched_by = "asset_tag"
-                needs_updating = True
-            elif "device with this name already exists" in str(e):
-                logger.debug("matched by name")
-                matched_by = "name"
-                needs_updating = True
-        if needs_updating:  # update existing device
+        device_check = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data['custom_fields']['rt_id'])]
+
+        if len(device_check) == 1: 
+            logger.debug("device already in netbox. sending to update checker")
+            needs_updating = True
+            matched_by = "cf_rt_id"
+        if needs_updating:
             self.update_device(data, matched_by, py_netbox)
-        # exit(222)
+        else:
+            try:
+                py_netbox.dcim.devices.create(data)
+            except pynetbox.RequestError as e:
+                logger.debug("matched request error")
+                pp.pprint(e.args)
+                if "device with this Asset tag already exists" in str(e):
+                    logger.debug("matched by asset tag")
+                    matched_by = "asset_tag"
+                    needs_updating = True
+                elif "device with this name already exists" in str(e):
+                    logger.debug("matched by name")
+                    matched_by = "name"
+                    needs_updating = True
+            if needs_updating:  # update existing device
+                self.update_device(data, matched_by, py_netbox)
+
 
     def update_device(self, data, match_type, py_netbox):
-        logger.debug("NETBOX:update_device: not yet implemented")
+        
+        if match_type == "cf_rt_id":
+            device = py_netbox.dcim.devices.get(cf_rt_id=data['custom_fields']['rt_id'])
+        elif match_type == "asset_tag":
+            device = py_netbox.dcim.devices.get(asset_tag=data['asset_tag'])
+        elif match_type == "name":
+            device = py_netbox.dcim.devices.get(name=data['name'])
+        print(device.update(data))
+        exit(1)
+
 
     # def post_location(self, data):
     #     url = self.base_url + '/api/1.0/location/'
@@ -943,6 +960,9 @@ class DB(object):
             user=config["MySQL"]["DB_USER"],
             passwd=config["MySQL"]["DB_PWD"],
         )
+
+        self.con.query('SET SESSION interactive_timeout=60')
+        # self.con.query('SET SESSION wait_timeout=3600')
 
     @staticmethod
     def convert_ip(ip_raw):
@@ -1829,7 +1849,7 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]} """
+            q = f"""SELECT id FROM Object WHERE  {config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
@@ -1837,50 +1857,95 @@ class DB(object):
         self.con = None
 
         for dev_id in ids:
-            if not self.con:
-                self.connect()
-                cur = self.con.cursor()
-            q = f"""Select
-                        Object.id,
-                        Object.objtype_id,
-                        Object.name as Description,
-                        Object.label as Name,
-                        Object.asset_no as Asset,
-                        Attribute.name as Name,
-                        Dictionary.dict_value as Type,
-                        Object.comment as Comment,
-                        RackSpace.rack_id as RackID,
-                        Rack.name as rack_name,
-                        Rack.row_name,
-                        Rack.location_id,
-                        Rack.location_name,
-                        Location.parent_name,
-                        COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
-                        Attribute.type
+            try:
+                if not self.con:
+                    self.connect()
+                    cur = self.con.cursor()
+                q = f"""Select
+                            Object.id,
+                            Object.objtype_id,
+                            Object.name as Description,
+                            Object.label as Name,
+                            Object.asset_no as Asset,
+                            Attribute.name as Name,
+                            Dictionary.dict_value as Type,
+                            Object.comment as Comment,
+                            RackSpace.rack_id as RackID,
+                            Rack.name as rack_name,
+                            Rack.row_name,
+                            Rack.location_id,
+                            Rack.location_name,
+                            Location.parent_name,
+                            COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
+                            Attribute.type
 
-                        FROM Object
-                        left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
-                        LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
-                        LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
-                        LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
-                        LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
-                        LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
-                        LEFT JOIN Location ON Rack.location_id = Location.id
-                        LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
-                        WHERE Object.id = {dev_id}
-                        AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
-                        {config["Misc"]["device_data_filter"]} """
-            logger.debug(q)
+                            FROM Object
+                            left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
+                            LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
+                            LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+                            LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
+                            LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                            LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
+                            LEFT JOIN Location ON Rack.location_id = Location.id
+                            LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
+                            WHERE Object.id = {dev_id}
+                            AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
+                            {config["Misc"]["device_data_filter"]} """
+                logger.debug(q)
 
-            cur.execute(q)
-            data = cur.fetchall()
-            # print(json.dumps(data))
-            cur.close()
-            self.con = None
-            if data:  # RT objects that do not have data are locations, racks, rows etc...
-                self.process_data(data, dev_id)
-            logger.debug('skipped devices:')
-            pp.pprint(self.skipped_devices)
+                cur.execute(q)
+                data = cur.fetchall()
+                # print(json.dumps(data))
+                cur.close()
+                self.con = None
+                if data:  # RT objects that do not have data are locations, racks, rows etc...
+                    self.process_data(data, dev_id)
+            except:
+                sleep(2)
+                if not self.con:
+                    self.connect()
+                    cur = self.con.cursor()
+                q = f"""Select
+                            Object.id,
+                            Object.objtype_id,
+                            Object.name as Description,
+                            Object.label as Name,
+                            Object.asset_no as Asset,
+                            Attribute.name as Name,
+                            Dictionary.dict_value as Type,
+                            Object.comment as Comment,
+                            RackSpace.rack_id as RackID,
+                            Rack.name as rack_name,
+                            Rack.row_name,
+                            Rack.location_id,
+                            Rack.location_name,
+                            Location.parent_name,
+                            COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
+                            Attribute.type
+
+                            FROM Object
+                            left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
+                            LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
+                            LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+                            LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
+                            LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                            LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
+                            LEFT JOIN Location ON Rack.location_id = Location.id
+                            LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
+                            WHERE Object.id = {dev_id}
+                            AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
+                            {config["Misc"]["device_data_filter"]} """
+                logger.debug(q)
+
+                cur.execute(q)
+                data = cur.fetchall()
+                # print(json.dumps(data))
+                cur.close()
+                self.con = None
+                if data:  # RT objects that do not have data are locations, racks, rows etc...
+                    self.process_data(data, dev_id)
+        logger.debug('skipped devices:')
+        pp.pprint(self.skipped_devices)
 
     def get_obj_location(self, obj_id):
         if not self.con:
@@ -1919,278 +1984,304 @@ class DB(object):
         rrack_id = None
         floor = None
         dev_type = 0
+        process_object = True
+        bad_tag = False
         
+        if process_object:
+            for x in data:
+                (   rt_object_id,
+                    dev_type,
+                    rdesc,
+                    rname,
+                    rasset,
+                    rattr_name,
+                    dict_dictvalue,
+                    rcomment,
+                    rrack_id,
+                    rrack_name,
+                    rrow_name,
+                    rlocation_id,
+                    rlocation_name,
+                    rparent_name,
+                    attrib_value,
+                    attrib_type
+                ) = x
+                logger.debug(x)
 
-        for x in data:
-            (   rt_object_id,
-                dev_type,
-                rdesc,
-                rname,
-                rasset,
-                rattr_name,
-                dict_dictvalue,
-                rcomment,
-                rrack_id,
-                rrack_name,
-                rrow_name,
-                rlocation_id,
-                rlocation_name,
-                rparent_name,
-                attrib_value,
-                attrib_type
-            ) = x
-            logger.debug(x)
-
-            name = self.remove_links(rdesc)
-            if rcomment:
-                try:
-                    note = rname+'\n'+rcomment
-                except:
-                    note = rcomment
-            else:
-                note = rname
-
-            if "Operating System" in x:
-                opsys = dict_dictvalue
-                opsys = self.remove_links(opsys)
-                if "%GSKIP%" in opsys:
-                    opsys = opsys.replace("%GSKIP%", " ")
-                if "%GPASS%" in opsys:
-                    opsys = opsys.replace("%GPASS%", " ")
-                devicedata["custom_fields"]['Operating System'] = str(opsys)
-            elif "SW type" in x:
-                opsys = dict_dictvalue
-                opsys = self.remove_links(opsys)
-                if "%GSKIP%" in opsys:
-                    opsys = opsys.replace("%GSKIP%", " ")
-                if "%GPASS%" in opsys:
-                    opsys = opsys.replace("%GPASS%", " ")
-                devicedata["custom_fields"]['SW type'] = str(opsys)
-                
-
-            elif "Server Hardware" in x:
-                hardware = dict_dictvalue
-                hardware = self.remove_links(hardware)
-                if "%GSKIP%" in hardware:
-                    hardware = hardware.replace("%GSKIP%", " ")
-                if "%GPASS%" in hardware:
-                    hardware = hardware.replace("%GPASS%", " ")
-                if "\t" in hardware:
-                    hardware = hardware.replace("\t", " ")
-
-            elif "HW type" in x:
-                hardware = dict_dictvalue
-                hardware = self.remove_links(hardware)
-                if "%GSKIP%" in hardware:
-                    hardware = hardware.replace("%GSKIP%", " ")
-                if "%GPASS%" in hardware:
-                    hardware = hardware.replace("%GPASS%", " ")
-                if "\t" in hardware:
-                    hardware = hardware.replace("\t", " ")
-            elif "BiosRev" in x:
-                biosrev =  self.remove_links(dict_dictvalue)
-                devicedata["custom_fields"]['BiosRev'] = biosrev
-            else:
-                if not rattr_name == None:
-                    if attrib_type == "dict":
-                        attrib_value_unclean = dict_dictvalue
-                    else:
-                        attrib_value_unclean = attrib_value
-                    cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
-                    # print(cleaned_val)
-                    devicedata["custom_fields"][rattr_name] = cleaned_val
-            if rasset:
-                devicedata["asset_tag"] = rasset
-            devicedata["custom_fields"]['rt_id'] = str(rt_object_id)
-            devicedata["custom_fields"]["Visible label"] = str(rname)
-
-            if note:
-                note = note.replace("\n", "\n\n") # markdown. all new lines need two new lines
-
-        # 0u device logic
-        zero_location_obj_data = None
-        if rlocation_name == None:
-            zero_location_obj_data = self.get_obj_location(rt_object_id)
-            rlocation_name = zero_location_obj_data[5]
-            rrack_id = zero_location_obj_data[0]
-            rrack_name = zero_location_obj_data[1]
-            print(zero_location_obj_data)
-            print(f"obj location (probably 0u device): {rlocation_name}")
-
-        rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]['rt_id']))
-        # print(rt_tags)
-        tags = []
-        # print (self.tag_map)
-        for tag in rt_tags:
-            try:
-                # print(tag)
-                tags.append(self.tag_map[tag]["id"])
-            except:
-                logger.debug("failed to find tag {} in lookup map".format(tag))
-        devicedata['tags'] = tags
-        if name:
-            # set device data
-            devicedata.update({"name": name})
-            if hardware:
-                devicedata.update({"hardware": hardware[:48]})
-            if opsys:
-                devicedata.update({"os": opsys})
-            if note:
-                devicedata.update({"comments": note})
-            if dev_id in self.vm_hosts:
-                devicedata.update({"is_it_virtual_host": "yes"})
-            if dev_type == 8:
-                devicedata.update({"is_it_switch": "yes"})
-            elif dev_type == 1502:
-                devicedata.update({"is_it_blade_host": "yes"})
-            elif dev_type == 4:
-                try:
-                    blade_host_id = self.container_map[dev_id]
-                    blade_host_name = self.chassis[blade_host_id]
-                    devicedata.update({"type": "blade"})
-                    devicedata.update({"blade_host": blade_host_name})
-                except KeyError:
-                    # print("ERROR: failed to track down blade info")
-                    pass
-            elif dev_type == 1504:
-                devicedata.update({"type": "virtual"})
-                devicedata.pop("hardware", None)
-                try:
-                    vm_host_id = self.container_map[dev_id]
-                    vm_host_name = self.vm_hosts[vm_host_id]
-                    devicedata.update({"virtual_host": vm_host_name})
-                except KeyError:
-                    logger.debug("ERROR: failed to track down virtual host info")
-                    pass
-
-            d42_rack_id = None
-            # except VMs
-            print("here")
-            print(rrack_id)
-            if dev_type != 1504:
-                if rrack_id:
-                    rack_detail = dict(py_netbox.dcim.racks.get(name=rrack_name))
-                    rack_id = rack_detail["id"]
-                    devicedata.update({"rack": rack_id})
-                    d42_rack_id = rack_id
-
-                    # if the device is mounted in RT, we will try to add it to D42 hardwares.
-                    position, height, depth, mount = self.get_hardware_size(dev_id)
-                    devicedata.update({"position": position})
-                    devicedata.update({"face": mount})
-                    # 0u device logic
-                    if height == None and not zero_location_obj_data == None:
-                        height = 0
+                name = self.remove_links(rdesc)
+                if rcomment:
+                    try:
+                        note = rname+'\n'+rcomment
+                    except:
+                        note = rcomment
                 else:
-                    height = 0
+                    note = rname
 
-            netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
-            devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
-            devicedata["device_role"] = 1
-            # devicedata['device_type'] = 22
-            if not "hardware" in devicedata.keys():
-                devicedata['hardware'] = f"generic_{height}u_device"
-            logger.debug(devicedata["hardware"])
-            if str(devicedata["hardware"]) in device_type_map_preseed["by_key_name"].keys():
-                logger.debug("hardware match")
-                # print(str(devicedata['hardware']))
-                nb_slug = device_type_map_preseed["by_key_name"][str(devicedata["hardware"])]["slug"]
-                if nb_slug in netbox.device_types:
-                    logger.debug("found template in netbox")
-                    devicedata["device_type"] = netbox.device_types[nb_slug]["id"]
-                else:
-                    logger.debug("did not find matching device template in netbox")
-                    if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
-                        logger.debug("device with no matching template by slugname {nb_slug} found")
-                        exit(112)
-            else:
-                if not devicedata['hardware'] in self.skipped_devices.keys():
-                    self.skipped_devices[devicedata['hardware']] = 1
-                else:
-                    self.skipped_devices[devicedata['hardware']] = self.skipped_devices[devicedata['hardware']] + 1
-                logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
+                if "Operating System" in x:
+                    opsys = dict_dictvalue
+                    opsys = self.remove_links(opsys)
+                    if "%GSKIP%" in opsys:
+                        opsys = opsys.replace("%GSKIP%", " ")
+                    if "%GPASS%" in opsys:
+                        opsys = opsys.replace("%GPASS%", " ")
+                    devicedata["custom_fields"]['Operating System'] = str(opsys)
+                elif "SW type" in x:
+                    opsys = dict_dictvalue
+                    opsys = self.remove_links(opsys)
+                    if "%GSKIP%" in opsys:
+                        opsys = opsys.replace("%GSKIP%", " ")
+                    if "%GPASS%" in opsys:
+                        opsys = opsys.replace("%GPASS%", " ")
+                    devicedata["custom_fields"]['SW type'] = str(opsys)
+                    
 
-            # upload device
-            if devicedata:
-                if hardware and dev_type != 1504:
+                elif "Server Hardware" in x:
+                    hardware = dict_dictvalue
+                    hardware = self.remove_links(hardware)
+                    if "%GSKIP%" in hardware:
+                        hardware = hardware.replace("%GSKIP%", " ")
+                    if "%GPASS%" in hardware:
+                        hardware = hardware.replace("%GPASS%", " ")
+                    if "\t" in hardware:
+                        hardware = hardware.replace("\t", " ")
+
+                elif "HW type" in x:
+                    hardware = dict_dictvalue
+                    hardware = self.remove_links(hardware)
+                    if "%GSKIP%" in hardware:
+                        hardware = hardware.replace("%GSKIP%", " ")
+                    if "%GPASS%" in hardware:
+                        hardware = hardware.replace("%GPASS%", " ")
+                    if "\t" in hardware:
+                        hardware = hardware.replace("\t", " ")
+                elif "BiosRev" in x:
+                    biosrev =  self.remove_links(dict_dictvalue)
+                    devicedata["custom_fields"]['BiosRev'] = biosrev
+                else:
+                    if not rattr_name == None:
+                        if attrib_type == "dict":
+                            attrib_value_unclean = dict_dictvalue
+                        else:
+                            attrib_value_unclean = attrib_value
+                        cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
+                        # print(cleaned_val)
+                        devicedata["custom_fields"][rattr_name] = cleaned_val
+                        print(config['Misc']['CUSTOM_FIELD_MAPPER'])
+                        config_cust_field_map = json.loads(config['Misc']['CUSTOM_FIELD_MAPPER'])
+                        if rattr_name in config_cust_field_map.keys():
+                            devicedata[config_cust_field_map[rattr_name]] = cleaned_val
+                if rasset:
+                    devicedata["asset_tag"] = rasset
+                devicedata["custom_fields"]['rt_id'] = str(rt_object_id)
+                devicedata["custom_fields"]["Visible label"] = str(rname)
+
+                if note:
+                    note = note.replace("\n", "\n\n") # markdown. all new lines need two new lines
+
+            if not 'tags' in devicedata.keys():
+                rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]['rt_id']))
+                tags = []
+                # print (self.tag_map)
+
+                for tag in rt_tags:
+                    try:
+                        # print(tag)
+                        tags.append(self.tag_map[tag]["id"])
+                    except:
+                        logger.debug("failed to find tag {} in lookup map".format(tag))
+                devicedata['tags'] = tags
+
+            
+            bad_tags = []
+            for tag_check in config['Misc']['SKIP_OBJECTS_WITH_TAGS'].strip().split(','):
+                logger.debug(f"checking for tag '{tag_check}'")
+                if self.tag_map[tag_check]["id"] in devicedata['tags']:
+                    logger.debug(f"tag matched by id")
+                    bad_tag = True
+                    bad_tags.append(tag_check)
+            if bad_tag:
+                process_object = False
+                name = None
+                logger.info(f"skipping object rt_id:{rt_object_id} as it has tags: {str(bad_tags)}")
+
+            # 0u device logic
+            zero_location_obj_data = None
+            if rlocation_name == None:
+                zero_location_obj_data = self.get_obj_location(rt_object_id)
+                rlocation_name = zero_location_obj_data[5]
+                rrack_id = zero_location_obj_data[0]
+                rrack_name = zero_location_obj_data[1]
+                print(zero_location_obj_data)
+                print(f"obj location (probably 0u device): {rlocation_name}")
+
+            if name:
+                # set device data
+                devicedata.update({"name": name})
+                if hardware:
                     devicedata.update({"hardware": hardware[:48]})
+                if opsys:
+                    devicedata.update({"os": opsys})
+                if note:
+                    devicedata.update({"comments": note})
+                if dev_id in self.vm_hosts:
+                    devicedata.update({"is_it_virtual_host": "yes"})
+                if dev_type == 8:
+                    devicedata.update({"is_it_switch": "yes"})
+                elif dev_type == 1502:
+                    devicedata.update({"is_it_blade_host": "yes"})
+                elif dev_type == 4:
+                    try:
+                        blade_host_id = self.container_map[dev_id]
+                        blade_host_name = self.chassis[blade_host_id]
+                        devicedata.update({"type": "blade"})
+                        devicedata.update({"blade_host": blade_host_name})
+                    except KeyError:
+                        # print("ERROR: failed to track down blade info")
+                        pass
+                elif dev_type == 1504:
+                    devicedata.update({"type": "virtual"})
+                    devicedata.pop("hardware", None)
+                    try:
+                        vm_host_id = self.container_map[dev_id]
+                        vm_host_name = self.vm_hosts[vm_host_id]
+                        devicedata.update({"virtual_host": vm_host_name})
+                    except KeyError:
+                        logger.debug("ERROR: failed to track down virtual host info")
+                        pass
 
-                # set default type for racked devices
-                if "type" not in devicedata and d42_rack_id and floor:
-                    devicedata.update({"type": "physical"})
+                d42_rack_id = None
+                # except VMs
 
-                logger.debug(json.dumps(devicedata))
-                netbox.post_device(devicedata, py_netbox)
+                if dev_type != 1504:
+                    if rrack_id:
+                        rack_detail = dict(py_netbox.dcim.racks.get(name=rrack_name))
+                        rack_id = rack_detail["id"]
+                        devicedata.update({"rack": rack_id})
+                        d42_rack_id = rack_id
 
-                # update ports
-                if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
-                    ports = self.get_ports_by_device(self.all_ports, dev_id)
-                    if ports:
-                        for item in ports:
-                            switchport_data = {
-                                "port": item[0],
-                                "switch": name,
-                                "label": item[1],
-                            }
+                        # if the device is mounted in RT, we will try to add it to D42 hardwares.
+                        position, height, depth, mount = self.get_hardware_size(dev_id)
+                        devicedata.update({"position": position})
+                        devicedata.update({"face": mount})
+                        # 0u device logic
+                        if height == None and not zero_location_obj_data == None:
+                            height = 0
+                    else:
+                        height = 0
 
-                            get_links = self.get_links(item[3])
-                            if get_links:
-                                device_name = self.get_device_by_port(get_links[0])
-                                switchport_data.update({"device": device_name})
-                                switchport_data.update({"remote_device": device_name})
-                                # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
+                devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
+                devicedata["device_role"] = 1
+                # devicedata['device_type'] = 22
+                if not "hardware" in devicedata.keys():
+                    if height == None:
+                        height = 0
+                    devicedata['hardware'] = f"generic_{height}u_device"
+                logger.debug(devicedata["hardware"])
+                if str(devicedata["hardware"]) in device_type_map_preseed["by_key_name"].keys():
+                    logger.debug("hardware match")
+                    # print(str(devicedata['hardware']))
+                    nb_slug = device_type_map_preseed["by_key_name"][str(devicedata["hardware"])]["slug"]
+                    if nb_slug in netbox.device_types:
+                        logger.debug("found template in netbox")
+                        devicedata["device_type"] = netbox.device_types[nb_slug]["id"]
+                    else:
+                        logger.debug("did not find matching device template in netbox")
+                        if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
+                            logger.debug("device with no matching template by slugname {nb_slug} found")
+                            exit(112)
+                else:
+                    if not devicedata['hardware'] in self.skipped_devices.keys():
+                        self.skipped_devices[devicedata['hardware']] = 1
+                    else:
+                        self.skipped_devices[devicedata['hardware']] = self.skipped_devices[devicedata['hardware']] + 1
+                    logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
 
-                                # netbox.post_switchport(switchport_data)
+                # upload device
+                if devicedata:
+                    if hardware and dev_type != 1504:
+                        devicedata.update({"hardware": hardware[:48]})
 
-                                # reverse connection
-                                device_name = self.get_device_by_port(get_links[0])
+                    # set default type for racked devices
+                    if "type" not in devicedata and d42_rack_id and floor:
+                        devicedata.update({"type": "physical"})
+
+                    logger.debug(json.dumps(devicedata))
+                    netbox.post_device(devicedata, py_netbox)
+
+                    # update ports
+                    if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
+                        # ports = self.get_ports_by_device(self.all_ports, dev_id)
+                        ports = False
+                        if ports:
+                            for item in ports:
                                 switchport_data = {
-                                    "port": self.get_port_by_id(self.all_ports, get_links[0]),
-                                    "switch": device_name,
+                                    "port": item[0],
+                                    "switch": name,
+                                    "label": item[1],
                                 }
 
-                                switchport_data.update({"device": name})
-                                switchport_data.update({"remote_device": name})
-                                switchport_data.update({"remote_port": item[0]})
+                                get_links = self.get_links(item[3])
+                                if get_links:
+                                    device_name = self.get_device_by_port(get_links[0])
+                                    switchport_data.update({"device": device_name})
+                                    switchport_data.update({"remote_device": device_name})
+                                    # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
+                                    # netbox.post_switchport(switchport_data)
+
+                                    # reverse connection
+                                    device_name = self.get_device_by_port(get_links[0])
+                                    switchport_data = {
+                                        "port": self.get_port_by_id(self.all_ports, get_links[0]),
+                                        "switch": device_name,
+                                    }
+
+                                    switchport_data.update({"device": name})
+                                    switchport_data.update({"remote_device": name})
+                                    switchport_data.update({"remote_port": item[0]})
+
+                                    # netbox.post_switchport(switchport_data)
+                                # else:
                                 # netbox.post_switchport(switchport_data)
-                            # else:
-                            # netbox.post_switchport(switchport_data)
 
-                # # if there is a device, we can try to mount it to the rack
-                # if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
-                #     device2rack.update({"device": name})
-                #     if hardware:
-                #         device2rack.update({"hw_model": hardware[:48]})
-                #     device2rack.update({"rack_id": d42_rack_id})
-                #     device2rack.update({"start_at": floor})
-                #     logger.debug(device2rack)
-                #     # netbox.post_device2rack(device2rack)
-                # else:
-                #     if dev_type != 1504 and d42_rack_id is not None:
-                #         msg = (
-                #             '\n-----------------------------------------------------------------------\
-                #         \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
-                #         \n\tFloor returned from "get_hardware_size" function was: %s'
-                #             % (name, dev_id, str(floor))
-                #         )
-                #         logger.info(msg)
+                    # # if there is a device, we can try to mount it to the rack
+                    # if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
+                    #     device2rack.update({"device": name})
+                    #     if hardware:
+                    #         device2rack.update({"hw_model": hardware[:48]})
+                    #     device2rack.update({"rack_id": d42_rack_id})
+                    #     device2rack.update({"start_at": floor})
+                    #     logger.debug(device2rack)
+                    #     # netbox.post_device2rack(device2rack)
+                    # else:
+                    #     if dev_type != 1504 and d42_rack_id is not None:
+                    #         msg = (
+                    #             '\n-----------------------------------------------------------------------\
+                    #         \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
+                    #         \n\tFloor returned from "get_hardware_size" function was: %s'
+                    #             % (name, dev_id, str(floor))
+                    #         )
+                    #         logger.info(msg)
+                else:
+                    msg = (
+                        "\n-----------------------------------------------------------------------\
+                    \n[!] INFO: Device %s (RT id = %d) cannot be uploaded. Data was: %s"
+                        % (name, dev_id, str(devicedata))
+                    )
+                    logger.info(msg)
+
             else:
+                # device has no name thus it cannot be migrated
+                if bad_tag:
+                    msg2 = f"Device with RT id={dev_id} cannot be migrated because it has bad tags."
+                else:
+                    msg2 = f"Device with RT id={dev_id} cannot be migrated because it has no name."
                 msg = (
-                    "\n-----------------------------------------------------------------------\
-                \n[!] INFO: Device %s (RT id = %d) cannot be uploaded. Data was: %s"
-                    % (name, dev_id, str(devicedata))
+                    f"\n-----------------------------------------------------------------------\
+                \n[!] INFO: {msg2} "
                 )
                 logger.info(msg)
-
-        else:
-            # device has no name thus it cannot be migrated
-            msg = (
-                "\n-----------------------------------------------------------------------\
-            \n[!] INFO: Device with RT id=%d cannot be migrated because it has no name."
-                % dev_id
-            )
-            logger.info(msg)
 
     def get_device_to_ip(self):
         if not self.con:
