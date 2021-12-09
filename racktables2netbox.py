@@ -1312,7 +1312,7 @@ class DB(object):
         for line in tags:
             attrib_type, attrib_name = line
             attributes.append({"name": attrib_name, "type": attrib_type})
-        attributes.append({"name": "rt_id", "type": "text"})  # custom field for racktables source objid
+        attributes.append({"name": "rt_id", "type": "text", "filter_logic": "exact"})  # custom field for racktables source objid
         attributes.append({"name": "Visible label", "type": "text"})
         attributes.append({"name": "SW type", "type": "text"})
         attributes.append({"name": "Operating System", "type": "text"})
