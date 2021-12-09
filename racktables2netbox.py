@@ -1513,7 +1513,7 @@ class DB(object):
             rack.update({"rt_id": rack_id})  # we will remove this later
             rack['asset_tag'] = asset_no
             if comment:
-                rack['comments'] = '\n\n' + comment
+                rack['comments'] = '\n\n' + comment.replace("\n", "\n\n")
             else:
                 rack['comments'] = ''
             if config["Misc"]["ROW_AS_ROOM"]:
