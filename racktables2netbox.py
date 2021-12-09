@@ -370,11 +370,12 @@ class NETBOX(object):
 
     def post_device(self, data, py_netbox):
         needs_updating = False
-        device_check1 = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
+        device_check1 = [item for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
         if len(device_check1) == 1:
-            logger.debug("device already in netbox (via rt_id). sending to update checker")
-            needs_updating = True
-            matched_by = "cf_rt_id"
+            if device_check1[0]["custom_fields"]["rt_id"] == data["custom_fields"]["rt_id"]:
+                logger.debug("device already in netbox (via rt_id). sending to update checker")
+                needs_updating = True
+                matched_by = "cf_rt_id"
         if not needs_updating:
             if "asset_tag" in data.keys():
                 device_check2 = [str(item) for item in py_netbox.dcim.devices.filter(asset_tag=data["asset_tag"])]
@@ -935,6 +936,20 @@ class NETBOX(object):
                     # print("test")
                 except Exception as e:
                     logger.debug(e)
+    def get_rack_by_rt_id(self, rt_id):
+        nb = self.py_netbox
+        racks = [item for item in nb.dcim.racks.filter(cf_rt_id=rt_id)]
+        logger.debug(racks)
+        if len(racks) == 1:
+            return racks[0]
+        elif len(racks) > 1:
+            for rack in racks:
+                if rack['custom_fields']['rt_id'] == str(rt_id):
+                    return rack
+            return None
+        else:
+            return None
+        
 
 
 class DB(object):
@@ -1233,6 +1248,31 @@ class DB(object):
             self.create_tag_map()
         return tags
 
+    def get_attribs_for_obj(self, object_id):
+        attribs = {}
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = f"""SELECT
+                    Attribute.name as attrib_key,
+                    COALESCE(Dictionary.dict_value,AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value
+                    FROM AttributeValue
+                    LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+                    LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                    WHERE AttributeValue.object_id = {object_id}"""
+            cur.execute(q)
+
+            resp = cur.fetchall()
+            if config["Log"]["DEBUG"]:
+                msg = ("attribs_db_resp", str(resp))
+                logger.debug(msg)
+            cur.close()
+            self.con = None
+        for attrib_data in resp:
+            attribs[attrib_data[0]] = attrib_data[1]
+        return attribs
+
     def get_tags(self):
         tags = []
 
@@ -1454,22 +1494,28 @@ class DB(object):
             self.connect()
         with self.con:
             cur = self.con.cursor()
-            q = """SELECT id, name ,height, row_id, row_name, location_id, location_name from Rack;"""
+            q = """SELECT id, name ,height, row_id, row_name, location_id, location_name,asset_no,comment  from Rack;"""
             cur.execute(q)
             raw = cur.fetchall()
             cur.close()
             self.con = None
 
         for rec in raw:
-            rack_id, rack_name, height, row_id, row_name, location_id, location_name = rec
+            rack_id, rack_name, height, row_id, row_name, location_id, location_name,asset_no,comment  = rec
 
             rows_map.update({row_name: location_name})
 
             # prepare rack data. We will upload it a little bit later
             rack = {}
+            rack['custom_fields'] = {}
             rack.update({"name": rack_name})
             rack.update({"size": height})
             rack.update({"rt_id": rack_id})  # we will remove this later
+            rack['asset_tag'] = asset_no
+            if comment:
+                rack['comments'] = '\n\n' + comment
+            else:
+                rack['comments'] = ''
             if config["Misc"]["ROW_AS_ROOM"]:
                 rack.update({"room": row_name})
                 rack.update({"building": location_name})
@@ -1487,14 +1533,16 @@ class DB(object):
 
         # # upload rows as rooms
         # if config['Misc']['ROW_AS_ROOM']:
-        #     if config['Log']['DEBUG']:
+        #     if config['Log']['DEBUG'] == "True":
         #         msg = ('Rooms', str(rows_map))
         #         logger.debug(msg)
+        #     print("roomdata:")
         #     for room, parent in list(rows_map.items()):
         #         roomdata = {}
         #         roomdata.update({'name': room})
         #         roomdata.update({'building': parent})
-        #         netbox.post_room(roomdata)
+        #         # netbox.post_room(roomdata)
+        #         print(roomdata)
 
         # upload racks
         if config["Log"]["DEBUG"]:
@@ -1505,7 +1553,11 @@ class DB(object):
             netbox_rack["name"] = rack["name"]
             logger.debug("attempting to get site {} from netbox dict".format(rack["building"]))
             netbox_rack["site"] = netbox_sites_by_comment[rack["building"]]["id"]
-            netbox_rack["comments"] = rack["room"]
+            netbox_rack["comments"] = rack["room"] + rack['comments']
+            netbox_rack['custom_fields'] = {}
+            netbox_rack['custom_fields']['rt_id'] = str(rack['rt_id'])
+            if rack['asset_tag']:
+                netbox_rack['asset_tag'] = rack['asset_tag']
             rt_tags = self.get_tags_for_obj("rack", rack["rt_id"])
             # print(rt_tags)
             tags = []
@@ -1521,7 +1573,7 @@ class DB(object):
                 netbox_rack["u_height"] = 100
             else:
                 netbox_rack["u_height"] = rack["size"]
-            pp.pprint(netbox_rack)
+            logger.debug(netbox_rack)
             netbox.post_rack(netbox_rack)
             # response = netbox.post_rack(rack)
 
@@ -2347,22 +2399,21 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             q = """SELECT
-                    Object.id,Object.name as Name, Object.asset_no as Asset,
-                    Object.comment as Comment, Dictionary.dict_value as Type, RackSpace.atom as Position,
-                    (SELECT Object.id FROM Object WHERE Object.id = RackSpace.rack_id) as RackID
+                    
+                    Object.id, Object.name, Object.label, asset_no, comment, unit_no, RackSpace.atom as Position, (SELECT Object.id FROM Object WHERE Object.id = RackSpace.rack_id) as RackID
                     FROM Object
-                    LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
-                    LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
-                    LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
                     LEFT JOIN RackSpace ON RackSpace.object_id = Object.id
                     WHERE Object.objtype_id = 2
                   """
             cur.execute(q)
         data = cur.fetchall()
-
+        cur.close()
+        self.con = None
         if config["Log"]["DEBUG"]:
             msg = ("PDUs", str(data))
             logger.debug(msg)
+        
+
 
         rack_mounted = []
         pdumap = {}
@@ -2370,42 +2421,82 @@ class DB(object):
         pdu_rack_models = []
 
         for line in data:
+            process = True
             pdumodel = {}
             pdudata = {}
             line = ["" if x is None else x for x in line]
-            pdu_id, name, asset, comment, pdu_type, position, rack_id = line
+            print(line)
+            pdu_id, name, label, asset_num, comment, unit_no, position, rack_id = line
+            # pdu_id, name, asset, comment, pdu_type, position, rack_id = line
+            pdu_attribs = racktables.get_attribs_for_obj(pdu_id)
+            
+            rt_tags = self.get_tags_for_obj("object", int(pdu_id))
+            tags = []
+            for tag in rt_tags:
+                try:
+                    # print(tag)
+                    tags.append(self.tag_map[tag]["id"])
+                except:
+                    logger.debug("failed to find tag {} in lookup map".format(tag))
 
-            if "%GPASS%" in pdu_type:
-                pdu_type = pdu_type.replace("%GPASS%", " ")
+            bad_tags = []
+            bad_tag = False
+            for tag_check in config["Misc"]["SKIP_OBJECTS_WITH_TAGS"].strip().split(","):
+                logger.debug(f"checking for tag '{tag_check}'")
+                if self.tag_map[tag_check]["id"] in tags:
+                    logger.debug(f"tag matched by id")
+                    bad_tag = True
+                    bad_tags.append(tag_check)
+            if bad_tag:
+                process = False
+                name = None
+                logger.info(f"skipping object rt_id:{pdu_id} as it has tags: {str(bad_tags)}")
+                continue
+            if not 'HW type' in pdu_attribs:
+                logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
+                continue
 
-            pdu_type = pdu_type[:64]
-            pdudata.update({"name": name})
+            if "%GPASS%" in pdu_attribs['HW type']:
+                pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
+            del(pdu_attribs['HW type'])
+
+            pdu_type = self.remove_links(pdu_type[:64])
+            name = self.remove_links(name)
+            pdudata.update({"name": name })
             pdudata.update({"notes": comment})
             pdudata.update({"pdu_model": pdu_type})
+            pdudata.update({"custom_fields": pdu_attribs})
+            pdudata.update({"asset_tag": asset_num})
+            pdudata.update({"rack_id":rack_id})
             pdumodel.update({"name": pdu_type})
             pdumodel.update({"pdu_model": pdu_type})
             if rack_id:
                 floor, height, depth, mount = self.get_hardware_size(pdu_id)
                 pdumodel.update({"size": height})
                 pdumodel.update({"depth": depth})
+            print(pdudata)
+            print(pdumodel)
+            print("")
 
+            # print (self.tag_map)
+            
             # post pdu models
             if pdu_type and name not in pdumodels:
-                netbox.post_pdu_model(pdumodel)
+                # netbox.post_pdu_model(pdumodel)
                 pdumodels.append(pdumodel)
             elif pdu_type and rack_id:
                 if pdu_id not in pdu_rack_models:
-                    netbox.post_pdu_model(pdumodel)
+                    # netbox.post_pdu_model(pdumodel)
                     pdu_rack_models.append(pdu_id)
 
             # post pdus
             if pdu_id not in pdumap:
-                response = netbox.post_pdu(pdudata)
-                d42_pdu_id = response["msg"][1]
-                pdumap.update({pdu_id: d42_pdu_id})
+                # response = netbox.post_pdu(pdudata)
+                # d42_pdu_id = response["msg"][1]
+                pdumap.update({pdu_id: pdudata})
 
             # mount to rack
-            if position:
+            if position and process:
                 if pdu_id not in rack_mounted:
                     rack_mounted.append(pdu_id)
                     floor, height, depth, mount = self.get_hardware_size(pdu_id)
@@ -2423,7 +2514,7 @@ class DB(object):
                             rdata.update({"where": "mounted"})
                             rdata.update({"start_at": floor})
                             rdata.update({"orientation": mount})
-                            netbox.post_pdu_to_rack(rdata, d42_rack_id)
+                            # netbox.post_pdu_to_rack(rdata, d42_rack_id)
                     except TypeError:
                         msg = (
                             '\n-----------------------------------------------------------------------\
@@ -2436,24 +2527,16 @@ class DB(object):
                         msg = (
                             '\n-----------------------------------------------------------------------\
                         \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id map value: %s'
+                        \n\tWrong rack id map value1: %s'
                             % (name, pdu_id, str(rack_id))
                         )
                         logger.info(msg)
             # It's Zero-U then
-            else:
-                rack_id = self.get_rack_id_for_zero_us(pdu_id)
+            elif process:
+                rt_rack_id = self.get_rack_id_for_zero_us(pdu_id)
+                rack_id = netbox.get_rack_by_rt_id(rt_rack_id)['custom_fields']['rt_id']
+                # exit(22)
                 if rack_id:
-                    try:
-                        d42_rack_id = self.rack_id_map[rack_id]
-                    except KeyError:
-                        msg = (
-                            '\n-----------------------------------------------------------------------\
-                        \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id map value: %s'
-                            % (name, pdu_id, str(rack_id))
-                        )
-                        logger.info(msg)
                     if config["Misc"]["PDU_MOUNT"].lower() in (
                         "left",
                         "right",
@@ -2471,11 +2554,11 @@ class DB(object):
 
                     try:
                         rdata.update({"pdu_id": pdumap[pdu_id]})
-                        rdata.update({"rack_id": d42_rack_id})
+                        rdata.update({"rack_id": rack_id})
                         rdata.update({"pdu_model": pdu_type})
                         rdata.update({"where": where})
                         rdata.update({"orientation": mount})
-                        netbox.post_pdu_to_rack(rdata, d42_rack_id)
+                        # netbox.post_pdu_to_rack(rdata, d42_rack_id)
                     except UnboundLocalError:
                         msg = (
                             '\n-----------------------------------------------------------------------\
@@ -2484,6 +2567,14 @@ class DB(object):
                             % (name, pdu_id, str(rack_id))
                         )
                         logger.info(msg)
+        print("rack_mounted:")
+        pp.pprint(rack_mounted)
+        print("pdumap:")
+        pp.pprint(pdumap)
+        print("pdumodels:")
+        pp.pprint(pdumodels)
+        print("pdu_rack_models:")
+        pp.pprint(pdu_rack_models)
 
     def get_patch_panels(self):
         if not self.con:
@@ -2660,6 +2751,8 @@ class DB(object):
             )
             cur.execute(q)
         data = cur.fetchone()
+        cur.close()
+        self.con = None
         if data:
             return data[0]
 
@@ -2729,11 +2822,12 @@ if __name__ == "__main__":
         # racktables.get_device_types()
         logger.debug("running manage hardware")
         racktables.get_devices()
+        # racktables.get_infrastructure()
+        # racktables.get_pdus()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
     # racktables.get_device_to_ip()
-    # racktables.get_pdus()
     # racktables.get_patch_panels()
     # racktables.get_devices()
 
