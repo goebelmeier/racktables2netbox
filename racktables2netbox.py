@@ -1256,7 +1256,8 @@ class DB(object):
             cur = self.con.cursor()
             q = f"""SELECT
                     Attribute.name as attrib_key,
-                    COALESCE(Dictionary.dict_value,AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value
+                    COALESCE(Dictionary.dict_value,AttributeValue.float_value,AttributeValue.string_value,AttributeValue.uint_value,'') as attrib_value,
+                    Attribute.type as _attrib_type
                     FROM AttributeValue
                     LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
                     LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
@@ -1270,7 +1271,12 @@ class DB(object):
             cur.close()
             self.con = None
         for attrib_data in resp:
-            attribs[attrib_data[0]] = attrib_data[1]
+            if not attrib_data[1] == "NULL":
+                if attrib_data[2] == "date":
+                    datetime_time = datetime.datetime.fromtimestamp(int(attrib_data[1]))
+                    attribs[attrib_data[0]] = datetime_time.strftime("%Y-%m-%d")
+                else:
+                    attribs[attrib_data[0]] = attrib_data[1]
         return attribs
 
     def get_tags(self):
@@ -2400,11 +2406,14 @@ class DB(object):
             cur = self.con.cursor()
             q = """SELECT
                     
-                    Object.id, Object.name, Object.label, asset_no, comment, unit_no, RackSpace.atom as Position, (SELECT Object.id FROM Object WHERE Object.id = RackSpace.rack_id) as RackID
+                    Object.id, Object.name, Object.label, asset_no, comment, unit_no, 
+                    RackSpace.atom as Position, (SELECT Object.id FROM Object WHERE Object.id = RackSpace.rack_id) as RackID
                     FROM Object
                     LEFT JOIN RackSpace ON RackSpace.object_id = Object.id
                     WHERE Object.objtype_id = 2
                   """
+            q = q + "and Object.id = 3877 "
+            q = q + "and "+config['Misc']['device_data_filter_obj_only']
             cur.execute(q)
         data = cur.fetchall()
         cur.close()
@@ -2413,7 +2422,6 @@ class DB(object):
             msg = ("PDUs", str(data))
             logger.debug(msg)
         
-
 
         rack_mounted = []
         pdumap = {}
@@ -2456,9 +2464,10 @@ class DB(object):
                 logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
                 continue
 
-            if "%GPASS%" in pdu_attribs['HW type']:
-                pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
+            # if "%GPASS%" in pdu_attribs['HW type']:
+            pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
             del(pdu_attribs['HW type'])
+            pdu_attribs['rt_id'] = str(pdu_id)
 
             pdu_type = self.remove_links(pdu_type[:64])
             name = self.remove_links(name)
@@ -2467,27 +2476,12 @@ class DB(object):
             pdudata.update({"pdu_model": pdu_type})
             pdudata.update({"custom_fields": pdu_attribs})
             pdudata.update({"asset_tag": asset_num})
-            pdudata.update({"rack_id":rack_id})
+            pdudata.update({"rack":rack_id})
             pdumodel.update({"name": pdu_type})
             pdumodel.update({"pdu_model": pdu_type})
-            if rack_id:
-                floor, height, depth, mount = self.get_hardware_size(pdu_id)
-                pdumodel.update({"size": height})
-                pdumodel.update({"depth": depth})
             print(pdudata)
             print(pdumodel)
             print("")
-
-            # print (self.tag_map)
-            
-            # post pdu models
-            if pdu_type and name not in pdumodels:
-                # netbox.post_pdu_model(pdumodel)
-                pdumodels.append(pdumodel)
-            elif pdu_type and rack_id:
-                if pdu_id not in pdu_rack_models:
-                    # netbox.post_pdu_model(pdumodel)
-                    pdu_rack_models.append(pdu_id)
 
             # post pdus
             if pdu_id not in pdumap:
@@ -2535,6 +2529,7 @@ class DB(object):
             elif process:
                 rt_rack_id = self.get_rack_id_for_zero_us(pdu_id)
                 rack_id = netbox.get_rack_by_rt_id(rt_rack_id)['custom_fields']['rt_id']
+                pdudata["rack"] = rack_id
                 # exit(22)
                 if rack_id:
                     if config["Misc"]["PDU_MOUNT"].lower() in (
@@ -2567,6 +2562,8 @@ class DB(object):
                             % (name, pdu_id, str(rack_id))
                         )
                         logger.info(msg)
+                else:
+                    logger.error(f"could not find rack for PDU rt_id{pdu_id}")
         print("rack_mounted:")
         pp.pprint(rack_mounted)
         print("pdumap:")
@@ -2821,9 +2818,9 @@ if __name__ == "__main__":
         # print("running device types")
         # racktables.get_device_types()
         logger.debug("running manage hardware")
-        racktables.get_devices()
+        # racktables.get_devices()
         # racktables.get_infrastructure()
-        # racktables.get_pdus()
+        racktables.get_pdus()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
