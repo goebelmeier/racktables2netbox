@@ -370,12 +370,25 @@ class NETBOX(object):
 
     def post_device(self, data, py_netbox):
         needs_updating = False
-        device_check = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
-
-        if len(device_check) == 1:
-            logger.debug("device already in netbox. sending to update checker")
+        device_check1 = [str(item) for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
+        if len(device_check1) == 1:
+            logger.debug("device already in netbox (via rt_id). sending to update checker")
             needs_updating = True
             matched_by = "cf_rt_id"
+        if not needs_updating:
+            if "asset_tag" in data.keys():
+                device_check2 = [str(item) for item in py_netbox.dcim.devices.filter(asset_tag=data["asset_tag"])]
+                if len(device_check2)== 1:
+                    logger.debug("device already in netbox (via asset_tag). sending to update checker")
+                    needs_updating = True
+                    matched_by = "asset_tag"
+        if not needs_updating:
+            device_check3 = [str(item) for item in py_netbox.dcim.devices.filter(name=data["name"])]
+            if len(device_check3)== 1:
+                logger.debug("device already in netbox (via name). sending to update checker")
+                needs_updating = True
+                matched_by = "name"
+
         if needs_updating:
             self.update_device(data, matched_by, py_netbox)
         else:
@@ -1850,7 +1863,7 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"""SELECT id FROM Object WHERE  {config["Misc"]["device_data_filter_obj_only"]} """
+            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
@@ -2076,6 +2089,12 @@ class DB(object):
 
                 if note:
                     note = note.replace("\n", "\n\n")  # markdown. all new lines need two new lines
+            
+            if hardware:
+                if note:
+                    note = "hardware: "+hardware + "\n\n" + note
+                else:
+                    note = "hardware: "+hardware
 
             if not "tags" in devicedata.keys():
                 rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]["rt_id"]))
@@ -2202,10 +2221,11 @@ class DB(object):
                         self.skipped_devices[devicedata["hardware"]] = 1
                     else:
                         self.skipped_devices[devicedata["hardware"]] = self.skipped_devices[devicedata["hardware"]] + 1
+                    process_object = False
                     logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
 
                 # upload device
-                if devicedata:
+                if devicedata and process_object:
                     if hardware and dev_type != 1504:
                         devicedata.update({"hardware": hardware[:48]})
 
