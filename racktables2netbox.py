@@ -194,6 +194,31 @@ class NETBOX(object):
         else:
             return False
 
+    def device_type_checker(self, device_model_name, attempt_import=True):
+        if not self.device_types:
+            self.device_types = {str(item.slug): dict(item) for item in self.py_netbox.dcim.device_types.all()}
+        slug_id = None
+        if str(device_model_name) in device_type_map_preseed["by_key_name"].keys():
+            logger.debug("hardware match")
+            # print(str(devicedata['hardware']))
+            nb_slug = device_type_map_preseed["by_key_name"][str(device_model_name)]["slug"]
+            if nb_slug in netbox.device_types:
+                logger.debug("found template in netbox")
+                slug_id = netbox.device_types[nb_slug]["id"]
+            elif attempt_import:
+                logger.debug("did not find matching device template in netbox, attempting import")
+                self.post_device_type(device_model_name,device_type_map_preseed["by_key_name"][str(device_model_name)])
+                return self.device_type_checker(device_model_name, False)
+            else:
+                logger.debug("did not find matching device template in netbox")
+                if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
+                    logger.debug("device with no matching template by slugname {nb_slug} found")
+                    exit(112)
+        else:
+            logger.debug("hardware type missing: {}".format(device_model_name))
+        return slug_id
+
+
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
         exists = self.check_for_ip(data)
@@ -344,31 +369,32 @@ class NETBOX(object):
     def post_device_type(self, device_type_key, device_type):
         logger.debug(device_type_key)
         logger.debug(device_type)
-        try:
-            filename = device_type["device_template_data"]["yaml_file"]
-        except:
-            filename = device_type["device_template_data"]["yaml_url"]
+
         data = {}
-        if "yaml_file" in device_type["device_template_data"].keys():
+        if "yaml_file" in device_type.keys():
+            filename = device_type["yaml_file"]
             with open(filename, "r") as stream:
                 try:
                     data = yaml.safe_load(stream)
                 except yaml.YAMLError as exc:
                     logger.debug(exc)
-        if "yaml_url" in device_type["device_template_data"].keys():
+        if "yaml_url" in device_type.keys():
             try:
-                resp = requests.get(device_type["device_template_data"]["yaml_url"])
+                resp = requests.get(device_type["yaml_url"])
                 data = yaml.safe_load(resp.text)
             except:
-                logger.debug(f"failed to load {device_type['device_template_data']['yaml_url']} for {device_type_key} template")
+                logger.debug(f"failed to load {device_type['yaml_url']} for {device_type_key} template")
 
         pp.pprint(data)
         man_data = {"name": data["manufacturer"], "slug": self.slugFormat(data["manufacturer"])}
         self.createManufacturers([man_data], py_netbox)
         data["manufacturer"] = man_data
         self.createDeviceTypes([data], py_netbox)
+        self.device_types = {str(item.slug): dict(item) for item in self.py_netbox.dcim.device_types.all()}
 
-    def post_device(self, data, py_netbox):
+    def post_device(self, data, py_netbox=None):
+        if not py_netbox:
+            py_netbox = self.py_netbox
         needs_updating = False
         device_check1 = [item for item in py_netbox.dcim.devices.filter(cf_rt_id=data["custom_fields"]["rt_id"])]
         if len(device_check1) == 1:
@@ -2248,7 +2274,7 @@ class DB(object):
 
                 netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
                 devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
-                devicedata["device_role"] = 1
+                devicedata["device_role"] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
                 # devicedata['device_type'] = 22
                 if not "hardware" in devicedata.keys():
                     if height == None:
@@ -2262,26 +2288,13 @@ class DB(object):
                             generic_depth = "short_"
                     devicedata["hardware"] = f"generic_{height}u_{generic_depth}device"
                 logger.debug(devicedata["hardware"])
-                if str(devicedata["hardware"]) in device_type_map_preseed["by_key_name"].keys():
-                    logger.debug("hardware match")
-                    # print(str(devicedata['hardware']))
-                    nb_slug = device_type_map_preseed["by_key_name"][str(devicedata["hardware"])]["slug"]
-                    if nb_slug in netbox.device_types:
-                        logger.debug("found template in netbox")
-                        devicedata["device_type"] = netbox.device_types[nb_slug]["id"]
-                    else:
-                        logger.debug("did not find matching device template in netbox")
-                        if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
-                            logger.debug("device with no matching template by slugname {nb_slug} found")
-                            exit(112)
-                else:
+                devicedata['device_type'] = netbox.device_type_checker(devicedata["hardware"])
+                if devicedata['device_type'] == None:
                     if not devicedata["hardware"] in self.skipped_devices.keys():
                         self.skipped_devices[devicedata["hardware"]] = 1
                     else:
                         self.skipped_devices[devicedata["hardware"]] = self.skipped_devices[devicedata["hardware"]] + 1
                     process_object = False
-                    logger.debug("hardware type missing: {}".format(devicedata["hardware"]))
-
                 # upload device
                 if devicedata and process_object:
                     if hardware and dev_type != 1504:
@@ -2412,8 +2425,9 @@ class DB(object):
                     LEFT JOIN RackSpace ON RackSpace.object_id = Object.id
                     WHERE Object.objtype_id = 2
                   """
-            q = q + "and Object.id = 3877 "
+            # q = q + "and Object.id = 7507 "
             q = q + "and "+config['Misc']['device_data_filter_obj_only']
+            print(q)
             cur.execute(q)
         data = cur.fetchall()
         cur.close()
@@ -2427,152 +2441,179 @@ class DB(object):
         pdumap = {}
         pdumodels = []
         pdu_rack_models = []
+        processed_ids = []
 
         for line in data:
             process = True
             pdumodel = {}
             pdudata = {}
             line = ["" if x is None else x for x in line]
-            print(line)
+            # print(line)
             pdu_id, name, label, asset_num, comment, unit_no, position, rack_id = line
-            # pdu_id, name, asset, comment, pdu_type, position, rack_id = line
-            pdu_attribs = racktables.get_attribs_for_obj(pdu_id)
-            
-            rt_tags = self.get_tags_for_obj("object", int(pdu_id))
-            tags = []
-            for tag in rt_tags:
-                try:
-                    # print(tag)
-                    tags.append(self.tag_map[tag]["id"])
-                except:
-                    logger.debug("failed to find tag {} in lookup map".format(tag))
-
-            bad_tags = []
-            bad_tag = False
-            for tag_check in config["Misc"]["SKIP_OBJECTS_WITH_TAGS"].strip().split(","):
-                logger.debug(f"checking for tag '{tag_check}'")
-                if self.tag_map[tag_check]["id"] in tags:
-                    logger.debug(f"tag matched by id")
-                    bad_tag = True
-                    bad_tags.append(tag_check)
-            if bad_tag:
-                process = False
-                name = None
-                logger.info(f"skipping object rt_id:{pdu_id} as it has tags: {str(bad_tags)}")
-                continue
-            if not 'HW type' in pdu_attribs:
-                logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
-                continue
-
-            # if "%GPASS%" in pdu_attribs['HW type']:
-            pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
-            del(pdu_attribs['HW type'])
-            pdu_attribs['rt_id'] = str(pdu_id)
-
-            pdu_type = self.remove_links(pdu_type[:64])
-            name = self.remove_links(name)
-            pdudata.update({"name": name })
-            pdudata.update({"notes": comment})
-            pdudata.update({"pdu_model": pdu_type})
-            pdudata.update({"custom_fields": pdu_attribs})
-            pdudata.update({"asset_tag": asset_num})
-            pdudata.update({"rack":rack_id})
-            pdumodel.update({"name": pdu_type})
-            pdumodel.update({"pdu_model": pdu_type})
-            print(pdudata)
-            print(pdumodel)
-            print("")
-
-            # post pdus
-            if pdu_id not in pdumap:
-                # response = netbox.post_pdu(pdudata)
-                # d42_pdu_id = response["msg"][1]
-                pdumap.update({pdu_id: pdudata})
-
-            # mount to rack
-            if position and process:
-                if pdu_id not in rack_mounted:
-                    rack_mounted.append(pdu_id)
-                    floor, height, depth, mount = self.get_hardware_size(pdu_id)
-                    if floor is not None:
-                        floor = int(floor) + 1
-                    else:
-                        floor = "auto"
+            if pdu_id not in processed_ids: # query may return pdu_id multiple times, skip if already processed
+                processed_ids.append(pdu_id)
+                # pdu_id, name, asset, comment, pdu_type, position, rack_id = line
+                pdu_attribs = racktables.get_attribs_for_obj(pdu_id)
+                
+                rt_tags = self.get_tags_for_obj("object", int(pdu_id))
+                tags = []
+                for tag in rt_tags:
                     try:
-                        d42_rack_id = self.rack_id_map[rack_id]
-                        if floor:
-                            rdata = {}
-                            rdata.update({"pdu_id": pdumap[pdu_id]})
-                            rdata.update({"rack_id": d42_rack_id})
-                            rdata.update({"pdu_model": pdu_type})
-                            rdata.update({"where": "mounted"})
-                            rdata.update({"start_at": floor})
-                            rdata.update({"orientation": mount})
-                            # netbox.post_pdu_to_rack(rdata, d42_rack_id)
-                    except TypeError:
-                        msg = (
-                            '\n-----------------------------------------------------------------------\
-                        \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tFloor returned from "get_hardware_size" function was: %s'
-                            % (name, pdu_id, str(floor))
-                        )
-                        logger.info(msg)
-                    except KeyError:
-                        msg = (
-                            '\n-----------------------------------------------------------------------\
-                        \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id map value1: %s'
-                            % (name, pdu_id, str(rack_id))
-                        )
-                        logger.info(msg)
-            # It's Zero-U then
-            elif process:
-                rt_rack_id = self.get_rack_id_for_zero_us(pdu_id)
-                rack_id = netbox.get_rack_by_rt_id(rt_rack_id)['custom_fields']['rt_id']
-                pdudata["rack"] = rack_id
-                # exit(22)
-                if rack_id:
-                    if config["Misc"]["PDU_MOUNT"].lower() in (
-                        "left",
-                        "right",
-                        "above",
-                        "below",
-                    ):
-                        where = config["Misc"]["PDU_MOUNT"].lower()
-                    else:
-                        where = "left"
-                    if config["Misc"]["PDU_ORIENTATION"].lower() in ("front", "back"):
-                        mount = config["Misc"]["PDU_ORIENTATION"].lower()
-                    else:
-                        mount = "front"
-                    rdata = {}
+                        # print(tag)
+                        tags.append(self.tag_map[tag]["id"])
+                    except:
+                        logger.debug("failed to find tag {} in lookup map".format(tag))
 
-                    try:
-                        rdata.update({"pdu_id": pdumap[pdu_id]})
-                        rdata.update({"rack_id": rack_id})
-                        rdata.update({"pdu_model": pdu_type})
-                        rdata.update({"where": where})
-                        rdata.update({"orientation": mount})
-                        # netbox.post_pdu_to_rack(rdata, d42_rack_id)
-                    except UnboundLocalError:
-                        msg = (
-                            '\n-----------------------------------------------------------------------\
-                        \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
-                        \n\tWrong rack id: %s'
-                            % (name, pdu_id, str(rack_id))
-                        )
-                        logger.info(msg)
-                else:
-                    logger.error(f"could not find rack for PDU rt_id{pdu_id}")
-        print("rack_mounted:")
-        pp.pprint(rack_mounted)
-        print("pdumap:")
-        pp.pprint(pdumap)
-        print("pdumodels:")
-        pp.pprint(pdumodels)
-        print("pdu_rack_models:")
-        pp.pprint(pdu_rack_models)
+                bad_tags = []
+                bad_tag = False
+                for tag_check in config["Misc"]["SKIP_OBJECTS_WITH_TAGS"].strip().split(","):
+                    logger.debug(f"checking for tag '{tag_check}'")
+                    if self.tag_map[tag_check]["id"] in tags:
+                        logger.debug(f"tag matched by id")
+                        bad_tag = True
+                        bad_tags.append(tag_check)
+                if bad_tag:
+                    process = False
+                    name = None
+                    logger.info(f"skipping object rt_id:{pdu_id} as it has tags: {str(bad_tags)}")
+                    continue
+                if not 'HW type' in pdu_attribs:
+                    # logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
+                    # continue
+                    pdu_attribs['HW type'] = "generic_0u_device"
 
+                # if "%GPASS%" in pdu_attribs['HW type']:
+                pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
+                del(pdu_attribs['HW type'])
+                pdu_attribs['rt_id'] = str(pdu_id)
+                if "asset_tag" in pdu_attribs.keys():
+                    del(pdu_attribs['asset_tag'])
+
+                pdu_type = self.remove_links(pdu_type[:64])
+                name = self.remove_links(name)
+                pdudata.update({"name": name })
+                pdudata.update({"notes": comment})
+                pdudata.update({"pdu_model": pdu_type})
+                pdudata.update({"custom_fields": pdu_attribs})
+                pdudata.update({"asset_tag": asset_num})
+                pdudata.update({"rack":rack_id})
+                pdudata['device_type'] = netbox.device_type_checker(pdudata['pdu_model'])
+                if pdudata['device_type'] == None:
+                    if not pdudata['pdu_model'] in self.skipped_devices.keys():
+                        self.skipped_devices[pdudata["pdu_model"]] = 1
+                    else:
+                        self.skipped_devices[pdudata["pdu_model"]] = self.skipped_devices[pdudata["pdu_model"]] + 1
+                    process_object = False
+                pdumodel.update({"name": pdu_type})
+                pdumodel.update({"pdu_model": pdu_type})
+                # print(pdudata)
+                # print(pdumodel)
+                # print("")
+
+                # post pdus
+                if pdu_id not in pdumap:
+                    # response = netbox.post_pdu(pdudata)
+                    # d42_pdu_id = response["msg"][1]
+                    pdumap.update({pdu_id: pdudata})
+
+                # mount to rack
+                if position and process:
+                    if pdu_id not in rack_mounted:
+                        rack_mounted.append(pdu_id)
+                        position, height, depth, mount = self.get_hardware_size(pdu_id)
+                        print("got here")
+                        if True:
+                        # try:
+                            rack_data = netbox.get_rack_by_rt_id(pdudata['rack'])
+                            site_id = rack_data['site']['id']
+                            rack_id = rack_data['id']
+                            
+                            if position:
+                                rdata = {}
+                                rdata.update({"position": position})
+                                rdata.update({"face": mount})
+                                rdata.update({"rack": rack_id})
+                                rdata['device_role'] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
+                                rdata['device_type'] = pdudata['device_type']
+                                rdata.update({"name": pdudata['name'] })
+                                rdata['site'] = site_id
+                                rdata.update({"comments": pdudata['notes']})
+                                rdata['custom_fields'] = pdudata['custom_fields']
+                                if pdudata['asset_tag']:
+                                    if pdudata['asset_tag'].strip() != "":
+                                        rdata['asset_tag'] = pdudata['asset_tag']
+                                # pp.pprint(rdata)
+                                logger.info(f"adding 0U pdu: {rdata['name']}")
+                                print("IM HEREE")
+                                logger.debug(rdata)
+                                netbox.post_device(rdata)
+                                # netbox.post_pdu_to_rack(rdata, d42_rack_id)
+                        # except TypeError:
+                        #     msg = (
+                        #         '\n-----------------------------------------------------------------------\
+                        #     \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
+                        #     \n\tFloor returned from "get_hardware_size" function was: %s'
+                        #         % (name, pdu_id, str(floor))
+                        #     )
+                        #     logger.info(msg)
+                        # except KeyError:
+                        #     msg = (
+                        #         '\n-----------------------------------------------------------------------\
+                        #     \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
+                        #     \n\tWrong rack id map value1: %s'
+                        #         % (name, pdu_id, str(rack_id))
+                        #     )
+                        #     logger.info(msg)
+                # It's Zero-U then
+                elif process:
+                    print("0u pdu")
+                    
+                    rt_rack_id = self.get_rack_id_for_zero_us(pdu_id)
+                    rack_data = netbox.get_rack_by_rt_id(rt_rack_id)
+                    site_id = rack_data['site']['id']
+                    rack_id = rack_data['id']
+                    # pp.pprint(dict(rack_data))
+                    pdudata["rack"] = rack_id
+                    
+                    # exit(22)
+                    if rack_id:
+
+                        mount = "rear"
+                        rdata = {}
+                # pdudata.update({"name": name })
+                # pdudata.update({"notes": comment})
+                # pdudata.update({"pdu_model": pdu_type})
+                # pdudata.update({"custom_fields": pdu_attribs})
+                # pdudata.update({"asset_tag": asset_num})
+                # pdudata.update({"rack":rack_id})
+                        try:
+                            rdata.update({"rack": rack_id})
+                            rdata['device_role'] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
+                            rdata['device_type'] = pdudata['device_type']
+                            rdata.update({"name": pdudata['name'] })
+                            rdata['site'] = site_id
+                            rdata.update({"comments": pdudata['notes']})
+                            rdata['custom_fields'] = pdudata['custom_fields']
+                            if pdudata['asset_tag']:
+                                if pdudata['asset_tag'].strip() != "":
+                                    rdata['asset_tag'] = pdudata['asset_tag']
+                            rdata.update({"face": mount})
+                            # pp.pprint(rdata)
+                            logger.info(f"adding 0U pdu: {rdata['name']}")
+                            logger.debug(rdata)
+                            netbox.post_device(rdata)
+                        except UnboundLocalError:
+                            msg = (
+                                '\n-----------------------------------------------------------------------\
+                            \n[!] INFO: Cannot mount pdu "%s" (RT id = %d) to the rack.\
+                            \n\tWrong rack id: %s'
+                                % (name, pdu_id, str(rack_id))
+                            )
+                            logger.info(msg)
+                    else:
+                        logger.error(f"could not find rack for PDU rt_id: {pdu_id}")
+        logger.debug("skipped devices:")
+        pp.pprint(self.skipped_devices)
     def get_patch_panels(self):
         if not self.con:
             self.connect()
