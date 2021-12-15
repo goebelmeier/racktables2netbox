@@ -997,6 +997,7 @@ class DB(object):
         self.container_map = {}
         self.building_room_map = {}
         self.skipped_devices = {}
+        self.all_ports = None
 
     def connect(self):
         """
@@ -1281,9 +1282,12 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             q = f"""SELECT
-                    Attribute.name as attrib_key,
-                    COALESCE(Dictionary.dict_value,AttributeValue.float_value,AttributeValue.string_value,AttributeValue.uint_value,'') as attrib_value,
-                    Attribute.type as _attrib_type
+                    Attribute.name as attrib_key,                   
+                    Attribute.type as _attrib_type,
+                    AttributeValue.string_value as string_val, 
+                    AttributeValue.uint_value as uint_val, 
+                    AttributeValue.float_value as float_val, 
+                    Dictionary.dict_value as dict_val
                     FROM AttributeValue
                     LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
                     LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
@@ -1296,13 +1300,24 @@ class DB(object):
                 logger.debug(msg)
             cur.close()
             self.con = None
+        
         for attrib_data in resp:
-            if not attrib_data[1] == "NULL":
-                if attrib_data[2] == "date":
-                    datetime_time = datetime.datetime.fromtimestamp(int(attrib_data[1]))
-                    attribs[attrib_data[0]] = datetime_time.strftime("%Y-%m-%d")
-                else:
-                    attribs[attrib_data[0]] = attrib_data[1]
+            if attrib_data[1] == "uint":
+                attrib_val = attrib_data[3]
+            elif attrib_data[1] == "dict":
+                attrib_val = attrib_data[5]
+            elif attrib_data[1] == "string":
+                attrib_val = attrib_data[2]
+            elif attrib_data == "date":
+                attrib_val = attrib_data[3]
+            elif attrib_data == "float":
+                attrib_val = attrib_data[4]
+
+            if attrib_data[1] == "date":
+                datetime_time = datetime.datetime.fromtimestamp(int(attrib_val))
+                attribs[attrib_data[0]] = datetime_time.strftime("%Y-%m-%d")
+            else:
+                attribs[attrib_data[0]] = attrib_val
         return attribs
 
     def get_tags(self):
@@ -1939,7 +1954,8 @@ class DB(object):
         self.get_chassis()
         if not self.tag_map:
             self.create_tag_map()
-        self.all_ports = self.get_ports()
+        if not self.all_ports:
+            self.get_ports()
         if not netbox.device_types:
             netbox.device_types = {str(item.slug): dict(item) for item in py_netbox.dcim.device_types.all()}
         if not self.con:
@@ -2044,8 +2060,48 @@ class DB(object):
                     self.process_data(data, dev_id)
         logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
-
     def get_obj_location(self, obj_id):
+        # position check:
+        position, height, depth, mount = self.get_hardware_size(obj_id)
+
+        if position: # u position exists. can find rack id in rackspace table
+            if not self.con:
+                self.connect()
+
+            cur = self.con.cursor()
+            # get object IDs
+            q = f"""
+                SELECT rack_id,Rack.location_name, Rack.name FROM RackSpace left join Rack on RackSpace.rack_id = Rack.id where object_id = {obj_id}
+            """
+            cur.execute(q)
+            idsx = cur.fetchall()
+            cur.close()
+            self.con = None
+            pp.pprint(idsx)
+            rack_id = idsx[0][0]
+            location_name = idsx[0][1]
+            rack_name = idsx[0][2]
+            output_data = { "rack_mounted": True, 
+                            "rack_id": rack_id ,
+                            "rack_name": rack_name,
+                            "location": location_name,
+                            "position_data": {  "u": position, 
+                                                "height": height,
+                                                "depth": depth,
+                                                "face": mount
+                                                }
+                        }
+
+        else: 
+            data = self.get_0u_obj_location(obj_id)
+            output_data = { "rack_mounted": False, 
+                            "rack_id": data[0],
+                            "rack_name": data[1],
+                            "location": data[5]}
+        
+        return output_data
+
+    def get_0u_obj_location(self, obj_id):
         if not self.con:
             self.connect()
 
@@ -2208,7 +2264,7 @@ class DB(object):
             # 0u device logic
             zero_location_obj_data = None
             if rlocation_name == None:
-                zero_location_obj_data = self.get_obj_location(rt_object_id)
+                zero_location_obj_data = self.get_0u_obj_location(rt_object_id)
                 rlocation_name = zero_location_obj_data[5]
                 rrack_id = zero_location_obj_data[0]
                 rrack_name = zero_location_obj_data[1]
@@ -2615,29 +2671,46 @@ class DB(object):
         logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
     def get_patch_panels(self):
+        if not self.all_ports:
+            self.get_ports()
         if not self.con:
             self.connect()
+        
         with self.con:
             cur = self.con.cursor()
             q = """SELECT
                    id,
                    name,
-                   AttributeValue.uint_value
+                   AttributeValue.uint_value as num_of_ports,
+                   label,
+                   comment
                    FROM Object
                    LEFT JOIN AttributeValue ON AttributeValue.object_id = id AND AttributeValue.attr_id = 6
                    WHERE Object.objtype_id = 9
                  """
             cur.execute(q)
         data = cur.fetchall()
+        cur.close()
+        self.con = None
+        
 
         if config["Log"]["DEBUG"]:
             msg = ("PDUs", str(data))
             logger.debug(msg)
 
         for item in data:
+            pp.pprint(item)
             ports = self.get_ports_by_device(self.all_ports, item[0])
+            attribs = self.get_attribs_for_obj(item[0])
+            # pp.pprint(attribs)
+            location_data = self.get_obj_location(item[0])
+            pp.pprint(location_data)
+            rack_data = netbox.get_rack_by_rt_id(location_data['rack_id'])
+            site_id = rack_data['site']['id']
+            rack_id = rack_data['id']
             patch_type = "singular"
             port_type = None
+            port_list = []
 
             if isinstance(ports, list) and len(ports) > 0:
                 if len(ports) > 1:
@@ -2648,34 +2721,57 @@ class DB(object):
                         if port[2][:12] not in types:
                             types.append(port[2][:12])
 
-                    if len(types) > 1:
+                    if len(types) >= 1:
                         patch_type = "modular"
                         for port in ports:
-                            netbox.post_patch_panel_module_models(
-                                {
+                            # print(port)
+                            pp_data = {
                                     "name": port[0],
                                     "port_type": port[2][:12],
-                                    "number_of_ports": 1,
-                                    "number_of_ports_in_row": 1,
+                                    # "number_of_ports": 1,
+                                    # "number_of_ports_in_row": 1,
                                 }
-                            )
+                            port_list.append(pp_data)
+                            
 
                 if patch_type == "singular":
                     port_type = ports[0][2][:12]
-
+            # attribs["number_of_ports"] = item[2]
+            # attribs["number_of_ports_in_row"] = item[2]
+            if item[3]:
+                attribs["Visible label"] = item[3]
             payload = {
                 "name": item[1],
-                "type": patch_type,
-                "number_of_ports": item[2],
-                "number_of_ports_in_row": item[2],
+                # "type": patch_type,
+                "comments": item[4],
+                "custom_fields": attribs,
+                
+                "device_role": config["Misc"]['DEFAULT_DEVICE_ROLE_ID'],
+                "site": site_id,
+                
+
             }
+            if location_data['rack_mounted']:
+                payload.update({"position": location_data['position_data']['u']})
+                payload.update({"face": location_data['position_data']['face']})
+                payload.update( {'device_type': netbox.device_type_checker("generic_1u_patch_panel")} )
+            else:
+                payload.update( {'device_type': netbox.device_type_checker("generic_0u_patch_panel")} )
+            payload.update({"rack": rack_id})
 
-            if port_type is not None:
-                payload.update({"port_type": port_type})
+            # if port_type is not None:
+            #     payload.update({"port_type": port_type})
 
-            netbox.post_patch_panel(payload)
+            payload['port_list'] = port_list
+
+            # netbox.post_patch_panel(payload)
+            pp.pprint(payload)
+            
+            print("")
 
     def get_ports(self):
+        if self.all_ports:
+            return self.all_ports
         if not self.con:
             self.connect()
         with self.con:
@@ -2693,6 +2789,7 @@ class DB(object):
         cur.close()
         self.con = None
         if data:
+            self.all_ports = data
             return data
         else:
             return False
@@ -2861,7 +2958,8 @@ if __name__ == "__main__":
         logger.debug("running manage hardware")
         # racktables.get_devices()
         # racktables.get_infrastructure()
-        racktables.get_pdus()
+        # racktables.get_pdus()
+        racktables.get_patch_panels()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
