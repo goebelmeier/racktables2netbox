@@ -492,7 +492,7 @@ class NETBOX(object):
                         "10gbase-sr" : "10gbase-x-sfpp",
                         "empty sfp+" : "10gbase-x-sfpp",
                         "1000base-lx" : "1000base-x-sfp",
-                        "empty SFP-1000" : "1000base-x-sfp"
+                        "empty sfp-1000" : "1000base-x-sfp"
 
                     }
                     int_type = dev_int[2].lower()
