@@ -70,7 +70,7 @@ class NETBOX(object):
     def __init__(self, pynetboxobj):
         self.base_url = "{}/api".format(config["NetBox"]["NETBOX_HOST"])
         self.py_netbox = pynetboxobj
-
+        self.all_ips = None
         # Create HTTP connection pool
         self.s = requests.Session()
 
@@ -460,6 +460,7 @@ class NETBOX(object):
                     enabled=True,
                     description="rt_import"
                 )
+                nb_dev_ints[dev_int] = response
             else:
                 if not nb_dev_ints[dev_int].description == "rt_import":
                     nb_dev_ints[dev_int].update({
@@ -496,6 +497,7 @@ class NETBOX(object):
                         enabled=True,
                         description="rt_import"
                     )
+                    nb_dev_ints[dev_int[0]] = response
                 else:
                     if not nb_dev_ints[dev_int[0]].description == "rt_import":
                         nb_dev_ints[dev_int[0]].update({
@@ -1115,7 +1117,13 @@ class DB(object):
                 logger.debug(msg)
             cur2.close()
             self.con = None
+        
+        if not netbox.all_ips:
+            print("getting all ip(s) currently in netbox")
+            netbox.all_ips = {str(item): dict(item) for item in netbox.py_netbox.ipam.ip_addresses.all()}
+        nb_ips = netbox.all_ips
 
+        print("checking ips")
         for line in ips:
             net = {}
             ip_raw, name, comment, reserved = line
@@ -1131,17 +1139,19 @@ class DB(object):
             msg = "Label: %s" % desc
             logger.info(msg)
             if not desc in ["network", "broadcast"]:
-                netbox.post_ip(net)
-
+                if not f"{ip}/32" in nb_ips:
+                    netbox.post_ip(net)
+        print("checking ip alocations")
         for line in ip_by_allocation:
             net = {}
             object_id, allocationip_raw = line
             ip = self.convert_ip(allocationip_raw)
             if not ip in adrese:
-                net.update({"address": ip})
-                msg = "IP Address: %s" % ip
-                logger.info(msg)
-                netbox.post_ip(net)
+                if not f"{ip}/32" in nb_ips:
+                    net.update({"address": ip})
+                    msg = "IP Address: %s" % ip
+                    logger.info(msg)
+                    netbox.post_ip(net)
 
     def get_ips_v6(self):
         """
@@ -1169,32 +1179,39 @@ class DB(object):
                 logger.debug(msg)
             cur2.close()
             self.con = None
+        if not netbox.all_ips:
+            netbox.all_ips = {str(item): dict(item) for item in netbox.py_netbox.ipam.ip_addresses.all()}
+        nb_ips = netbox.all_ips
 
         for line in ips:
             net = {}
             ip_raw, name, comment, reserved = line
             ip = self.convert_ip_v6(ip_raw)
-            adrese.append(ip)
+            if not f"{ip}/128" in nb_ips:
+                adrese.append(ip)
 
-            net.update({"address": ip})
-            msg = "IP Address: %s" % ip
-            logger.info(msg)
+                net.update({"address": ip})
+                msg = "IP Address: %s" % ip
+                logger.info(msg)
 
-            desc = " ".join([name, comment]).strip()
-            net.update({"description": desc})
-            msg = "Label: %s" % desc
-            logger.info(msg)
-            netbox.post_ip(net)
+                desc = " ".join([name, comment]).strip()
+                net.update({"description": desc})
+                msg = "Label: %s" % desc
+                logger.info(msg)
+                
+                netbox.post_ip(net)
 
         for line in ip_by_allocation:
             net = {}
             object_id, allocationip_raw = line
             ip = self.convert_ip_v6(allocationip_raw)
-            if not ip in adrese:
-                net.update({"address": ip})
-                msg = "IP Address: %s" % ip
-                logger.info(msg)
-                netbox.post_ip(net)
+            if not f"{ip}/128" in nb_ips:
+                if not ip in adrese:
+                    net.update({"address": ip})
+                    msg = "IP Address: %s" % ip
+                    logger.info(msg)
+                    
+                    netbox.post_ip(net)
 
     def create_tag_map(self):
         logger.debug("creating tag map")
@@ -3092,6 +3109,7 @@ if __name__ == "__main__":
         racktables.get_subnets_v6()
     if config["Migrate"]["IPS"] == "True":
         logger.debug("running get ips")
+
         racktables.get_ips()
         racktables.get_ips_v6()
     if config["Migrate"]["HARDWARE"] == "True":
