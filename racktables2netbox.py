@@ -474,11 +474,6 @@ class NETBOX(object):
                 if nb_ip:
                     ip_update = {"assigned_object_type":"dcim.interface",
                     "assigned_object_id": nb_dev_ints[dev_int].id}
-                    # nb_ip.assigned_object_type = "dcim.interface"
-                    # nb_ip.assigned_object = nb_dev_ints[dev_int].id
-                    # pp.pprint(nb_dev_ints[dev_int].id)
-                    # nb_ip.assigned_object = nb_dev_ints[dev_int].id
-                    
                     print(nb_ip.update(ip_update))
                 else:
                     print("could not find ip {ip} in nb")
@@ -487,22 +482,26 @@ class NETBOX(object):
             
             if not "KVM" in dev_int[2] and not "AC-" in dev_int[2]:
                 # print(dev_int)
-
+                if "empty" in dev_int[2]:
+                    connected = False
+                else:
+                    connected = True
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
+                    
                     response = py_netbox.dcim.interfaces.create(
                         device=nb_device.id,
                         name=dev_int[0],
-                        type=dev_int[2].lower(),
-                        enabled=True,
+                        type=dev_int[2].replace("10GBase-SR","10gbase-x-sfpp").lower().replace("empty sfp+","10gbase-x-sfpp"),
+                        enabled=connected,
                         description="rt_import"
                     )
                     nb_dev_ints[dev_int[0]] = response
                 else:
                     if not nb_dev_ints[dev_int[0]].description == "rt_import":
                         nb_dev_ints[dev_int[0]].update({
-
-                            "description":"rt_import"}
+                            "description":"rt_import",
+                            "enabled": connected}
                         )
                 # print(response)
 
@@ -2040,7 +2039,9 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"""SELECT id FROM Object WHERE {config["Misc"]["device_data_filter_obj_only"]} """
+            q = f"SELECT id FROM Object WHERE" 
+            # q = q + "Object.id = 2039 and "
+            q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
