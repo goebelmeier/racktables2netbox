@@ -446,6 +446,65 @@ class NETBOX(object):
         logger.debug("sending updates (if any) to nb")
         device.update(data)
 
+    def create_device_interfaces(self, dev_id, dev_ints, ip_ints):
+        nb_device = py_netbox.dcim.devices.get(cf_rt_id=dev_id)
+        nb_dev_ints = {str(item):item for item in self.py_netbox.dcim.interfaces.filter(device_id=int(nb_device.id)) }
+        # pp.pprint(nb_dev_ints)
+        for dev_int in ip_ints:
+            if not dev_int in nb_dev_ints.keys():
+                print(f"{dev_int} not in nb_dev_ints, adding")
+                response = py_netbox.dcim.interfaces.create(
+                    device=nb_device.id,
+                    name=dev_int,
+                    type="virtual",
+                    enabled=True,
+                    description="rt_import"
+                )
+            else:
+                if not nb_dev_ints[dev_int].description == "rt_import":
+                    nb_dev_ints[dev_int].update({
+
+                        "description":"rt_import"}
+                    )
+                # print(response)
+            for ip in ip_ints[dev_int]:
+                print(ip)
+                nb_ip = self.py_netbox.ipam.ip_addresses.get(address=ip)
+                if nb_ip:
+                    ip_update = {"assigned_object_type":"dcim.interface",
+                    "assigned_object_id": nb_dev_ints[dev_int].id}
+                    # nb_ip.assigned_object_type = "dcim.interface"
+                    # nb_ip.assigned_object = nb_dev_ints[dev_int].id
+                    # pp.pprint(nb_dev_ints[dev_int].id)
+                    # nb_ip.assigned_object = nb_dev_ints[dev_int].id
+                    
+                    print(nb_ip.update(ip_update))
+                else:
+                    print("could not find ip {ip} in nb")
+        # pp.pprint(dev_ints)
+        for dev_int in dev_ints:
+            
+            if not "KVM" in dev_int[2] and not "AC-" in dev_int[2]:
+                # print(dev_int)
+
+                if not dev_int[0] in nb_dev_ints.keys():
+                    print(f"{dev_int[0]} not in nb_dev_ints, adding")
+                    response = py_netbox.dcim.interfaces.create(
+                        device=nb_device.id,
+                        name=dev_int[0],
+                        type=dev_int[2].lower(),
+                        enabled=True,
+                        description="rt_import"
+                    )
+                else:
+                    if not nb_dev_ints[dev_int[0]].description == "rt_import":
+                        nb_dev_ints[dev_int[0]].update({
+
+                            "description":"rt_import"}
+                        )
+                # print(response)
+
+
     # def post_location(self, data):
     #     url = self.base_url + '/api/1.0/location/'
     #     logger.info('Posting location data to {}'.format(url))
@@ -1317,7 +1376,7 @@ class DB(object):
                 datetime_time = datetime.datetime.fromtimestamp(int(attrib_val))
                 attribs[attrib_data[0]] = datetime_time.strftime("%Y-%m-%d")
             else:
-                attribs[attrib_data[0]] = attrib_val
+                attribs[attrib_data[0]] = str(attrib_val)
         return attribs
 
     def get_tags(self):
@@ -1949,6 +2008,7 @@ class DB(object):
             self.container_map.update({object_id: container_id})
 
     def get_devices(self):
+        pp.pprint("here")
 
         self.get_vmhosts()
         self.get_chassis()
@@ -1971,93 +2031,93 @@ class DB(object):
         self.con = None
 
         for dev_id in ids:
-            try:
-                if not self.con:
-                    self.connect()
-                    cur = self.con.cursor()
-                q = f"""Select
-                            Object.id,
-                            Object.objtype_id,
-                            Object.name as Description,
-                            Object.label as Name,
-                            Object.asset_no as Asset,
-                            Attribute.name as Name,
-                            Dictionary.dict_value as Type,
-                            Object.comment as Comment,
-                            RackSpace.rack_id as RackID,
-                            Rack.name as rack_name,
-                            Rack.row_name,
-                            Rack.location_id,
-                            Rack.location_name,
-                            Location.parent_name,
-                            COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
-                            Attribute.type
+            # try:
+            if not self.con:
+                self.connect()
+                cur = self.con.cursor()
+            q = f"""Select
+                        Object.id,
+                        Object.objtype_id,
+                        Object.name as Description,
+                        Object.label as Name,
+                        Object.asset_no as Asset,
+                        Attribute.name as Name,
+                        Dictionary.dict_value as Type,
+                        Object.comment as Comment,
+                        RackSpace.rack_id as RackID,
+                        Rack.name as rack_name,
+                        Rack.row_name,
+                        Rack.location_id,
+                        Rack.location_name,
+                        Location.parent_name,
+                        COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
+                        Attribute.type
 
-                            FROM Object
-                            left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
-                            LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
-                            LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
-                            LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
-                            LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
-                            LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
-                            LEFT JOIN Location ON Rack.location_id = Location.id
-                            LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
-                            WHERE Object.id = {dev_id}
-                            AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
-                            {config["Misc"]["device_data_filter"]} """
-                logger.debug(q)
+                        FROM Object
+                        left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
+                        LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
+                        LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+                        LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
+                        LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+                        LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
+                        LEFT JOIN Location ON Rack.location_id = Location.id
+                        LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
+                        WHERE Object.id = {dev_id}
+                        AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
+                        {config["Misc"]["device_data_filter"]} """
+            logger.debug(q)
 
-                cur.execute(q)
-                data = cur.fetchall()
-                # print(json.dumps(data))
-                cur.close()
-                self.con = None
-                if data:  # RT objects that do not have data are locations, racks, rows etc...
-                    self.process_data(data, dev_id)
-            except:
-                sleep(2)
-                if not self.con:
-                    self.connect()
-                    cur = self.con.cursor()
-                q = f"""Select
-                            Object.id,
-                            Object.objtype_id,
-                            Object.name as Description,
-                            Object.label as Name,
-                            Object.asset_no as Asset,
-                            Attribute.name as Name,
-                            Dictionary.dict_value as Type,
-                            Object.comment as Comment,
-                            RackSpace.rack_id as RackID,
-                            Rack.name as rack_name,
-                            Rack.row_name,
-                            Rack.location_id,
-                            Rack.location_name,
-                            Location.parent_name,
-                            COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
-                            Attribute.type
+            cur.execute(q)
+            data = cur.fetchall()
+            # print(json.dumps(data))
+            cur.close()
+            self.con = None
+            if data:  # RT objects that do not have data are locations, racks, rows etc...
+                self.process_data(data, dev_id)
+            # except:
+            #     sleep(2)
+            #     if not self.con:
+            #         self.connect()
+            #         cur = self.con.cursor()
+            #     q = f"""Select
+            #                 Object.id,
+            #                 Object.objtype_id,
+            #                 Object.name as Description,
+            #                 Object.label as Name,
+            #                 Object.asset_no as Asset,
+            #                 Attribute.name as Name,
+            #                 Dictionary.dict_value as Type,
+            #                 Object.comment as Comment,
+            #                 RackSpace.rack_id as RackID,
+            #                 Rack.name as rack_name,
+            #                 Rack.row_name,
+            #                 Rack.location_id,
+            #                 Rack.location_name,
+            #                 Location.parent_name,
+            #                 COALESCE(AttributeValue.string_value,AttributeValue.uint_value,AttributeValue.float_value,'') as attrib_value,
+            #                 Attribute.type
 
-                            FROM Object
-                            left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
-                            LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
-                            LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
-                            LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
-                            LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
-                            LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
-                            LEFT JOIN Location ON Rack.location_id = Location.id
-                            LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
-                            WHERE Object.id = {dev_id}
-                            AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
-                            {config["Misc"]["device_data_filter"]} """
-                logger.debug(q)
+            #                 FROM Object
+            #                 left join Dictionary as Dictionary2 on Dictionary2.dict_key = Object.objtype_id
+            #                 LEFT JOIN AttributeValue ON Object.id = AttributeValue.object_id
+            #                 LEFT JOIN Attribute ON AttributeValue.attr_id = Attribute.id
+            #                 LEFT JOIN RackSpace ON Object.id = RackSpace.object_id
+            #                 LEFT JOIN Dictionary ON Dictionary.dict_key = AttributeValue.uint_value
+            #                 LEFT JOIN Rack ON RackSpace.rack_id = Rack.id
+            #                 LEFT JOIN Location ON Rack.location_id = Location.id
+            #                 LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
+            #                 WHERE Object.id = {dev_id}
+            #                 AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
+            #                 {config["Misc"]["device_data_filter"]} """
+            #     logger.debug(q)
 
-                cur.execute(q)
-                data = cur.fetchall()
-                # print(json.dumps(data))
-                cur.close()
-                self.con = None
-                if data:  # RT objects that do not have data are locations, racks, rows etc...
-                    self.process_data(data, dev_id)
+            #     cur.execute(q)
+            #     data = cur.fetchall()
+            #     # print(json.dumps(data))
+            #     cur.close()
+            #     self.con = None
+            #     if data:  # RT objects that do not have data are locations, racks, rows etc...
+            #         self.process_data(data, dev_id)
         logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
     def get_obj_location(self, obj_id):
@@ -2365,39 +2425,48 @@ class DB(object):
 
                     # update ports
                     if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
-                        # ports = self.get_ports_by_device(self.all_ports, dev_id)
-                        ports = False
-                        if ports:
-                            for item in ports:
-                                switchport_data = {
-                                    "port": item[0],
-                                    "switch": name,
-                                    "label": item[1],
-                                }
+                        pp.pprint("got here")
+                        print("")
+                        ports = self.get_ports_by_device(self.all_ports, dev_id)
+                        pp.pprint(ports)
+                        
+                        ip_ints = self.get_devices_ips_ints(dev_id)
+                        pp.pprint(ip_ints)
+                        netbox.create_device_interfaces(dev_id,ports,ip_ints)
+                        # ports = False
+                        # if ports:
+                        #     for item in ports:
+                        #         switchport_data = {
+                        #             "port": item[0],
+                        #             "switch": name,
+                        #             "label": item[1],
+                        #         }
 
-                                get_links = self.get_links(item[3])
-                                if get_links:
-                                    device_name = self.get_device_by_port(get_links[0])
-                                    switchport_data.update({"device": device_name})
-                                    switchport_data.update({"remote_device": device_name})
-                                    # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                        #         get_links = self.get_links(item[3])
+                        #         pp.pprint(get_links)
+                        #         get_links = None
+                        #         if get_links:
+                        #             device_name = self.get_device_by_port(get_links[0])
+                        #             switchport_data.update({"device": device_name})
+                        #             switchport_data.update({"remote_device": device_name})
+                        #             # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
 
-                                    # netbox.post_switchport(switchport_data)
+                        #             # netbox.post_switchport(switchport_data)
 
-                                    # reverse connection
-                                    device_name = self.get_device_by_port(get_links[0])
-                                    switchport_data = {
-                                        "port": self.get_port_by_id(self.all_ports, get_links[0]),
-                                        "switch": device_name,
-                                    }
+                        #             # reverse connection
+                        #             device_name = self.get_device_by_port(get_links[0])
+                        #             switchport_data = {
+                        #                 "port": self.get_port_by_id(self.all_ports, get_links[0]),
+                        #                 "switch": device_name,
+                        #             }
 
-                                    switchport_data.update({"device": name})
-                                    switchport_data.update({"remote_device": name})
-                                    switchport_data.update({"remote_port": item[0]})
+                        #             switchport_data.update({"device": name})
+                        #             switchport_data.update({"remote_device": name})
+                        #             switchport_data.update({"remote_port": item[0]})
 
-                                    # netbox.post_switchport(switchport_data)
-                                # else:
-                                # netbox.post_switchport(switchport_data)
+                        #             # netbox.post_switchport(switchport_data)
+                        #         # else:
+                        #         # netbox.post_switchport(switchport_data)
 
                     # # if there is a device, we can try to mount it to the rack
                     # if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
@@ -2434,6 +2503,74 @@ class DB(object):
                 msg = f"\n-----------------------------------------------------------------------\
                 \n[!] INFO: {msg2} "
                 logger.info(msg)
+    def get_devices_ips_ints(self, dev_id):
+        ipv4_ints = self.get_device_ipv4_ints(dev_id)
+        ipv6_ints = self.get_device_ipv6_ints(dev_id)
+        return_obj = ipv4_ints
+        for interface in ipv6_ints.keys():
+            if interface in return_obj:
+                return_obj[interface] = return_obj[interface] + ipv6_ints[interface]
+            else:
+                return_obj[interface] = ipv6_ints[interface]
+        return return_obj
+
+    def get_device_ipv4_ints(self, dev_id):
+        if not self.con:
+            self.connect()
+        cur = self.con.cursor()
+        q = f"""SELECT
+                IPv4Allocation.ip,IPv4Allocation.name
+                FROM IPv4Allocation
+                WHERE object_id = {dev_id}"""
+        cur.execute(q)
+        data = cur.fetchall()
+        cur.close()
+        self.con = None
+
+        # if config["Log"]["DEBUG"]:
+        #     msg = ("Device to IP", str(data))
+        #     logger.debug(msg)
+
+        interfaces = {}
+        for ip_obj in data:
+
+            rawip, nic_name = ip_obj
+            if not nic_name:
+                nic_name = "UNKNOWN"
+            ip = self.convert_ip(rawip)
+
+            if not nic_name in interfaces.keys():
+                interfaces[nic_name] = []
+            interfaces[nic_name].append(ip+'/32')
+        return interfaces
+
+    def get_device_ipv6_ints(self, dev_id):
+        if not self.con:
+            self.connect()
+        cur = self.con.cursor()
+        q = f"""SELECT
+                IPv6Allocation.ip,IPv6Allocation.name
+                FROM IPv6Allocation
+                WHERE object_id = {dev_id}"""
+        cur.execute(q)
+        data = cur.fetchall()
+        cur.close()
+        self.con = None
+
+        # if config["Log"]["DEBUG"]:
+        #     msg = ("Device to IP", str(data))
+        #     logger.debug(msg)
+
+        interfaces = {}
+        for ip_obj in data:
+            rawip, nic_name = ip_obj
+            if not nic_name:
+                nic_name = "UNKNOWN"
+            ip = self.convert_ip_v6(rawip)
+            if not nic_name in interfaces.keys():
+                interfaces[nic_name] = []
+            interfaces[nic_name].append(ip+'/128')
+        return interfaces
 
     def get_device_to_ip(self):
         if not self.con:
@@ -2443,7 +2580,7 @@ class DB(object):
             cur = self.con.cursor()
             q = (
                 """SELECT
-                    IPv4Allocation.ip,IPv4Allocation.name,
+                    IPv4Allocation.ip,IPv4Allocation.name
                     Object.name as hostname
                     FROM %s.`IPv4Allocation`
                     LEFT JOIN Object ON Object.id = object_id"""
@@ -2467,6 +2604,7 @@ class DB(object):
             if nic_name:
                 devmap.update({"tag": nic_name})
             netbox.post_ip(devmap)
+    
 
     def get_pdus(self):
         if not self.con:
@@ -2704,7 +2842,7 @@ class DB(object):
             attribs = self.get_attribs_for_obj(item[0])
             # pp.pprint(attribs)
             location_data = self.get_obj_location(item[0])
-            pp.pprint(location_data)
+            # pp.pprint(location_data)
             rack_data = netbox.get_rack_by_rt_id(location_data['rack_id'])
             site_id = rack_data['site']['id']
             rack_id = rack_data['id']
@@ -2740,17 +2878,19 @@ class DB(object):
             # attribs["number_of_ports_in_row"] = item[2]
             if item[3]:
                 attribs["Visible label"] = item[3]
+            attribs["rt_id"] = str(item[0])
             payload = {
                 "name": item[1],
                 # "type": patch_type,
-                "comments": item[4],
+                
+                # "comments": item[4],
                 "custom_fields": attribs,
                 
                 "device_role": config["Misc"]['DEFAULT_DEVICE_ROLE_ID'],
                 "site": site_id,
-                
-
             }
+            if item[4]:
+                payload['comments'] = item[4]
             if location_data['rack_mounted']:
                 payload.update({"position": location_data['position_data']['u']})
                 payload.update({"face": location_data['position_data']['face']})
@@ -2762,10 +2902,12 @@ class DB(object):
             # if port_type is not None:
             #     payload.update({"port_type": port_type})
 
-            payload['port_list'] = port_list
+            # payload['port_list'] = port_list
 
             # netbox.post_patch_panel(payload)
+            netbox.post_device(payload)
             pp.pprint(payload)
+            # exit(3)
             
             print("")
 
@@ -2956,10 +3098,10 @@ if __name__ == "__main__":
         # print("running device types")
         # racktables.get_device_types()
         logger.debug("running manage hardware")
-        # racktables.get_devices()
+        racktables.get_devices()
         # racktables.get_infrastructure()
         # racktables.get_pdus()
-        racktables.get_patch_panels()
+        # racktables.get_patch_panels()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()
