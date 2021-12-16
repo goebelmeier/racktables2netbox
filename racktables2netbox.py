@@ -488,11 +488,21 @@ class NETBOX(object):
                     connected = True
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
+                    map_list = {
+                        "10gbase-sr" : "10gbase-x-sfpp",
+                        "empty sfp+" : "10gbase-x-sfpp",
+                        "1000base-lx" : "1000base-x-sfp",
+                        "empty SFP-1000" : "1000base-x-sfp"
+
+                    }
+                    int_type = dev_int[2].lower()
+                    if int_type in map_list.keys():
+                        int_type = map_list[int_type]
                     
                     response = py_netbox.dcim.interfaces.create(
                         device=nb_device.id,
                         name=dev_int[0],
-                        type=dev_int[2].replace("10GBase-SR","10gbase-x-sfpp").lower().replace("empty sfp+","10gbase-x-sfpp"),
+                        type=int_type,
                         enabled=connected,
                         description="rt_import"
                     )
