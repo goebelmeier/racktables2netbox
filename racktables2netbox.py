@@ -480,7 +480,7 @@ class NETBOX(object):
         # pp.pprint(dev_ints)
         for dev_int in dev_ints:
             
-            if not "KVM" in dev_int[2] and not "AC-" in dev_int[2]:
+            if not "KVM" in dev_int[2] and not "AC-" in dev_int[2] and not "RS-232" in dev_int[2]:
                 # print(dev_int)
                 if "empty" in dev_int[2]:
                     connected = False
@@ -2039,8 +2039,8 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"SELECT id FROM Object WHERE" 
-            # q = q + "Object.id = 2039 and "
+            q = f"SELECT id FROM Object WHERE " 
+            q = q + "Object.id >= 2042 and "
             q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
