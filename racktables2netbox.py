@@ -494,7 +494,8 @@ class NETBOX(object):
                         "1000base-lx" : "1000base-x-sfp",
                         "empty sfp-1000" : "1000base-x-sfp",
                         "10gbase-lr": "1000base-x-sfp",
-                        "empty qsfp": "40gbase-x-qsfpp" ,
+                        "empty qsfp": "40gbase-x-qsfpp",
+                        "virtual port": "virtual"
 
                     }
                     int_type = dev_int[2].lower()
@@ -2052,7 +2053,7 @@ class DB(object):
             cur = self.con.cursor()
             # get object IDs
             q = f"SELECT id FROM Object WHERE " 
-            q = q + "Object.id >= 2957 and "
+            q = q + "Object.id >= 3244 and "
             q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
