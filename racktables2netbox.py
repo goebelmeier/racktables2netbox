@@ -499,6 +499,8 @@ class NETBOX(object):
                         "virtual port": "virtual",
                         "10gbase-zr-dwdm80-51.72 (itu 32)": "10gbase-x-sfpp",
                         "empty xfp": "1000base-x-sfp",
+                        "empty sfp28": "25gbase-x-sfp28",
+                        "empty qsfp": "100gbase-x-qsfp28",
                     }
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
