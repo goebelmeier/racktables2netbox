@@ -495,25 +495,25 @@ class NETBOX(object):
                         "empty sfp-1000" : "1000base-x-sfp",
                         "10gbase-lr": "1000base-x-sfp",
                         "empty qsfp": "40gbase-x-qsfpp",
-                        "virtual port": "virtual"
-
+                        "virtual port": "virtual",
+                        "10gbase-zr-dwdm80-51.72 (itu 32)": "10gbase-x-sfpp",
                     }
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
                         int_type = map_list[int_type]
-                    
+                    description = f"{dev_int[2]} rt_import"
                     response = py_netbox.dcim.interfaces.create(
                         device=nb_device.id,
                         name=dev_int[0],
                         type=int_type,
                         enabled=connected,
-                        description="rt_import"
+                        description=description
                     )
                     nb_dev_ints[dev_int[0]] = response
                 else:
-                    if not nb_dev_ints[dev_int[0]].description == "rt_import":
+                    if not nb_dev_ints[dev_int[0]].description == description:
                         nb_dev_ints[dev_int[0]].update({
-                            "description":"rt_import",
+                            "description": description,
                             "enabled": connected}
                         )
                 # print(response)
