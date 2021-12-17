@@ -2053,7 +2053,7 @@ class DB(object):
             cur = self.con.cursor()
             # get object IDs
             q = f"SELECT id FROM Object WHERE " 
-            q = q + "Object.id >= 4010 and "
+            q = q + "Object.id >= 5618 and "
             q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
