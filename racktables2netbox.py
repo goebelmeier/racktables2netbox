@@ -486,6 +486,7 @@ class NETBOX(object):
                     connected = False
                 else:
                     connected = True
+                description = f"{dev_int[2]} rt_import"
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
                     map_list = {
@@ -501,7 +502,7 @@ class NETBOX(object):
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
                         int_type = map_list[int_type]
-                    description = f"{dev_int[2]} rt_import"
+                    
                     response = py_netbox.dcim.interfaces.create(
                         device=nb_device.id,
                         name=dev_int[0],
