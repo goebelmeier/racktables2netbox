@@ -501,6 +501,7 @@ class NETBOX(object):
                         "empty xfp": "1000base-x-sfp",
                         "empty sfp28": "25gbase-x-sfp28",
                         "empty qsfp": "100gbase-x-qsfp28",
+                        "100gbase-sr4" : "100gbase-x-qsfp28",
                     }
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
