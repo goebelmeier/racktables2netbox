@@ -498,6 +498,7 @@ class NETBOX(object):
                         "empty qsfp": "40gbase-x-qsfpp",
                         "virtual port": "virtual",
                         "10gbase-zr-dwdm80-51.72 (itu 32)": "10gbase-x-sfpp",
+                        "empty xfp": "1000base-x-sfp",
                     }
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
@@ -2054,7 +2055,7 @@ class DB(object):
             cur = self.con.cursor()
             # get object IDs
             q = f"SELECT id FROM Object WHERE " 
-            q = q + "Object.id >= 6242 and "
+            q = q + "Object.id >= 6316 and "
             q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
