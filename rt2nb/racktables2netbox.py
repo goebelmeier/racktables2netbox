@@ -452,7 +452,13 @@ class NETBOX(object):
         for dev_int in ip_ints:
             if not dev_int in nb_dev_ints.keys():
                 print(f"{dev_int} not in nb_dev_ints, adding")
-                response = py_netbox.dcim.interfaces.create(device=nb_device.id, name=dev_int, type="virtual", enabled=True, description="rt_import")
+                response = py_netbox.dcim.interfaces.create(
+                    device=nb_device.id,
+                    name=dev_int,
+                    type="virtual",
+                    enabled=True,
+                    description="rt_import",
+                )
                 nb_dev_ints[dev_int] = response
             else:
                 if not nb_dev_ints[dev_int].description == "rt_import":
@@ -462,7 +468,10 @@ class NETBOX(object):
                 print(ip)
                 nb_ip = self.py_netbox.ipam.ip_addresses.get(address=ip)
                 if nb_ip:
-                    ip_update = {"assigned_object_type": "dcim.interface", "assigned_object_id": nb_dev_ints[dev_int].id}
+                    ip_update = {
+                        "assigned_object_type": "dcim.interface",
+                        "assigned_object_id": nb_dev_ints[dev_int].id,
+                    }
                     print(nb_ip.update(ip_update))
                 else:
                     print("could not find ip {ip} in nb")
@@ -497,11 +506,22 @@ class NETBOX(object):
                     if int_type in map_list.keys():
                         int_type = map_list[int_type]
 
-                    response = py_netbox.dcim.interfaces.create(device=nb_device.id, name=dev_int[0], type=int_type, enabled=connected, description=description)
+                    response = py_netbox.dcim.interfaces.create(
+                        device=nb_device.id,
+                        name=dev_int[0],
+                        type=int_type,
+                        enabled=connected,
+                        description=description,
+                    )
                     nb_dev_ints[dev_int[0]] = response
                 else:
                     if not nb_dev_ints[dev_int[0]].description == description:
-                        nb_dev_ints[dev_int[0]].update({"description": description, "enabled": connected})
+                        nb_dev_ints[dev_int[0]].update(
+                            {
+                                "description": description,
+                                "enabled": connected,
+                            }
+                        )
                 # print(response)
 
     # def post_location(self, data):
@@ -2162,12 +2182,22 @@ class DB(object):
                 "rack_id": rack_id,
                 "rack_name": rack_name,
                 "location": location_name,
-                "position_data": {"u": position, "height": height, "depth": depth, "face": mount},
+                "position_data": {
+                    "u": position,
+                    "height": height,
+                    "depth": depth,
+                    "face": mount,
+                },
             }
 
         else:
             data = self.get_0u_obj_location(obj_id)
-            output_data = {"rack_mounted": False, "rack_id": data[0], "rack_name": data[1], "location": data[5]}
+            output_data = {
+                "rack_mounted": False,
+                "rack_id": data[0],
+                "rack_name": data[1],
+                "location": data[5],
+            }
 
         return output_data
 
@@ -3045,8 +3075,8 @@ if __name__ == "__main__":
     # configfile = "conf"
     # config = configparser.RawConfigParser()
     # config.read(configfile)
-    if os.environ.get('rt2nb_conf_file_name'):
-        conf_file_name = os.environ.get('rt2nb_conf_file_name')
+    if os.environ.get("rt2nb_conf_file_name"):
+        conf_file_name = os.environ.get("rt2nb_conf_file_name")
     else:
         conf_file_name = "conf.yaml"
     try:
@@ -3055,7 +3085,6 @@ if __name__ == "__main__":
     except:
         with open("../" + conf_file_name, "r") as stream:
             config = yaml.safe_load(stream)
-
 
     # Initialize Data pretty printer
     pp = pprint.PrettyPrinter(indent=4, width=100)
