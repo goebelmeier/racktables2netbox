@@ -1,0 +1,25 @@
+services:
+  rt_mysql:
+    image: mariadb:latest
+    ports:
+      - 3306:3306
+    volumes:
+      - ./rt_sql_initdb.d:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: racktables_dev_secret
+      MYSQL_DATABASE: racktables
+      MYSQL_USER: racktables
+      MYSQL_PASSWORD: racktables_dev
+  # racktables:
+  #   image: eltercera/docker-racktables
+  #   environment:
+  #     RACKTABLES_DB_HOST: rt_mysql
+  #     RACKTABLES_DB_NAME: racktables
+  #     RACKTABLES_DB_USERNAME: racktables
+  #     RACKTABLES_DB_PASSWORD: racktables_dev
+  #     # RACKTABLES_INIT_DB: "true"
+  #     # RACKTABLES_INIT_SAMPLE_RACKS: "true"
+  #     RACKTABLES_ADMIN_PASSWD: admin
+  #     RACKTABLES_REQUIRE_LOCAL_ACCOUNT: "false"
+  #   ports:
+  #     - 8080:8080
