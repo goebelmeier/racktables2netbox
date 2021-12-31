@@ -3042,15 +3042,17 @@ class DB(object):
 
 if __name__ == "__main__":
     # Import config
-    configfile = "conf"
-    config = configparser.RawConfigParser()
-    config.read(configfile)
+    # configfile = "conf"
+    # config = configparser.RawConfigParser()
+    # config.read(configfile)
+    with open("conf.yaml", "r") as stream:
+        config = yaml.safe_load(stream)
 
     # Initialize Data pretty printer
     pp = pprint.PrettyPrinter(indent=4, width=100)
 
     # Initialize logging platform
-    logger = logging.getLogger("racktables2netbox")
+    logger = logging.getLogger("rt2nb")
     logger.setLevel(logging.DEBUG)
 
     # Log to file

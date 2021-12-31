@@ -116,3 +116,4 @@ hardware_map.yaml
 
 custom_device_templates/*
 netbox-devicetypes/
+conf.yaml
