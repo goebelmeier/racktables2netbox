@@ -2289,7 +2289,7 @@ class DB(object):
                         cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
                         # print(cleaned_val)
                         devicedata["custom_fields"][rattr_name] = cleaned_val
-                        config_cust_field_map = json.loads(config["Misc"]["CUSTOM_FIELD_MAPPER"])
+                        config_cust_field_map = config["Misc"]["CUSTOM_FIELD_MAPPER"]
                         if rattr_name in config_cust_field_map.keys():
                             devicedata[config_cust_field_map[rattr_name]] = cleaned_val
                 if rasset:
