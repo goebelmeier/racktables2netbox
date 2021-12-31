@@ -207,7 +207,7 @@ class NETBOX(object):
                 slug_id = netbox.device_types[nb_slug]["id"]
             elif attempt_import:
                 logger.debug("did not find matching device template in netbox, attempting import")
-                self.post_device_type(device_model_name,device_type_map_preseed["by_key_name"][str(device_model_name)])
+                self.post_device_type(device_model_name, device_type_map_preseed["by_key_name"][str(device_model_name)])
                 return self.device_type_checker(device_model_name, False)
             else:
                 logger.debug("did not find matching device template in netbox")
@@ -217,7 +217,6 @@ class NETBOX(object):
         else:
             logger.debug("hardware type missing: {}".format(device_model_name))
         return slug_id
-
 
     def post_ip(self, data):
         url = self.base_url + "/ipam/ip-addresses/"
@@ -405,13 +404,13 @@ class NETBOX(object):
         if not needs_updating:
             if "asset_tag" in data.keys():
                 device_check2 = [str(item) for item in py_netbox.dcim.devices.filter(asset_tag=data["asset_tag"])]
-                if len(device_check2)== 1:
+                if len(device_check2) == 1:
                     logger.debug("device already in netbox (via asset_tag). sending to update checker")
                     needs_updating = True
                     matched_by = "asset_tag"
         if not needs_updating:
             device_check3 = [str(item) for item in py_netbox.dcim.devices.filter(name=data["name"])]
-            if len(device_check3)== 1:
+            if len(device_check3) == 1:
                 logger.debug("device already in netbox (via name). sending to update checker")
                 needs_updating = True
                 matched_by = "name"
@@ -448,38 +447,28 @@ class NETBOX(object):
 
     def create_device_interfaces(self, dev_id, dev_ints, ip_ints):
         nb_device = py_netbox.dcim.devices.get(cf_rt_id=dev_id)
-        nb_dev_ints = {str(item):item for item in self.py_netbox.dcim.interfaces.filter(device_id=int(nb_device.id)) }
+        nb_dev_ints = {str(item): item for item in self.py_netbox.dcim.interfaces.filter(device_id=int(nb_device.id))}
         # pp.pprint(nb_dev_ints)
         for dev_int in ip_ints:
             if not dev_int in nb_dev_ints.keys():
                 print(f"{dev_int} not in nb_dev_ints, adding")
-                response = py_netbox.dcim.interfaces.create(
-                    device=nb_device.id,
-                    name=dev_int,
-                    type="virtual",
-                    enabled=True,
-                    description="rt_import"
-                )
+                response = py_netbox.dcim.interfaces.create(device=nb_device.id, name=dev_int, type="virtual", enabled=True, description="rt_import")
                 nb_dev_ints[dev_int] = response
             else:
                 if not nb_dev_ints[dev_int].description == "rt_import":
-                    nb_dev_ints[dev_int].update({
-
-                        "description":"rt_import"}
-                    )
+                    nb_dev_ints[dev_int].update({"description": "rt_import"})
                 # print(response)
             for ip in ip_ints[dev_int]:
                 print(ip)
                 nb_ip = self.py_netbox.ipam.ip_addresses.get(address=ip)
                 if nb_ip:
-                    ip_update = {"assigned_object_type":"dcim.interface",
-                    "assigned_object_id": nb_dev_ints[dev_int].id}
+                    ip_update = {"assigned_object_type": "dcim.interface", "assigned_object_id": nb_dev_ints[dev_int].id}
                     print(nb_ip.update(ip_update))
                 else:
                     print("could not find ip {ip} in nb")
         # pp.pprint(dev_ints)
         for dev_int in dev_ints:
-            
+
             if not "KVM" in dev_int[2] and not "AC-" in dev_int[2] and not "RS-232" in dev_int[2]:
                 # print(dev_int)
                 if "empty" in dev_int[2]:
@@ -490,10 +479,10 @@ class NETBOX(object):
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
                     map_list = {
-                        "10gbase-sr" : "10gbase-x-sfpp",
-                        "empty sfp+" : "10gbase-x-sfpp",
-                        "1000base-lx" : "1000base-x-sfp",
-                        "empty sfp-1000" : "1000base-x-sfp",
+                        "10gbase-sr": "10gbase-x-sfpp",
+                        "empty sfp+": "10gbase-x-sfpp",
+                        "1000base-lx": "1000base-x-sfp",
+                        "empty sfp-1000": "1000base-x-sfp",
                         "10gbase-lr": "1000base-x-sfp",
                         "empty qsfp": "40gbase-x-qsfpp",
                         "virtual port": "virtual",
@@ -501,29 +490,19 @@ class NETBOX(object):
                         "empty xfp": "1000base-x-sfp",
                         "empty sfp28": "25gbase-x-sfp28",
                         "empty qsfp": "100gbase-x-qsfp28",
-                        "100gbase-sr4" : "100gbase-x-qsfp28",
-                        "100gbase-lr4" : "100gbase-x-qsfp28",
+                        "100gbase-sr4": "100gbase-x-qsfp28",
+                        "100gbase-lr4": "100gbase-x-qsfp28",
                     }
                     int_type = dev_int[2].lower()
                     if int_type in map_list.keys():
                         int_type = map_list[int_type]
-                    
-                    response = py_netbox.dcim.interfaces.create(
-                        device=nb_device.id,
-                        name=dev_int[0],
-                        type=int_type,
-                        enabled=connected,
-                        description=description
-                    )
+
+                    response = py_netbox.dcim.interfaces.create(device=nb_device.id, name=dev_int[0], type=int_type, enabled=connected, description=description)
                     nb_dev_ints[dev_int[0]] = response
                 else:
                     if not nb_dev_ints[dev_int[0]].description == description:
-                        nb_dev_ints[dev_int[0]].update({
-                            "description": description,
-                            "enabled": connected}
-                        )
+                        nb_dev_ints[dev_int[0]].update({"description": description, "enabled": connected})
                 # print(response)
-
 
     # def post_location(self, data):
     #     url = self.base_url + '/api/1.0/location/'
@@ -1041,6 +1020,7 @@ class NETBOX(object):
                     # print("test")
                 except Exception as e:
                     logger.debug(e)
+
     def get_rack_by_rt_id(self, rt_id):
         nb = self.py_netbox
         racks = [item for item in nb.dcim.racks.filter(cf_rt_id=rt_id)]
@@ -1049,12 +1029,11 @@ class NETBOX(object):
             return racks[0]
         elif len(racks) > 1:
             for rack in racks:
-                if rack['custom_fields']['rt_id'] == str(rt_id):
+                if rack["custom_fields"]["rt_id"] == str(rt_id):
                     return rack
             return None
         else:
             return None
-        
 
 
 class DB(object):
@@ -1135,7 +1114,7 @@ class DB(object):
                 logger.debug(msg)
             cur2.close()
             self.con = None
-        
+
         if not netbox.all_ips:
             print("getting all ip(s) currently in netbox")
             netbox.all_ips = {str(item): dict(item) for item in netbox.py_netbox.ipam.ip_addresses.all()}
@@ -1216,7 +1195,7 @@ class DB(object):
                 net.update({"description": desc})
                 msg = "Label: %s" % desc
                 logger.info(msg)
-                
+
                 netbox.post_ip(net)
 
         for line in ip_by_allocation:
@@ -1228,7 +1207,7 @@ class DB(object):
                     net.update({"address": ip})
                     msg = "IP Address: %s" % ip
                     logger.info(msg)
-                    
+
                     netbox.post_ip(net)
 
     def create_tag_map(self):
@@ -1394,7 +1373,7 @@ class DB(object):
                 logger.debug(msg)
             cur.close()
             self.con = None
-        
+
         for attrib_data in resp:
             if attrib_data[1] == "uint":
                 attrib_val = attrib_data[3]
@@ -1642,21 +1621,21 @@ class DB(object):
             self.con = None
 
         for rec in raw:
-            rack_id, rack_name, height, row_id, row_name, location_id, location_name,asset_no,comment  = rec
+            rack_id, rack_name, height, row_id, row_name, location_id, location_name, asset_no, comment = rec
 
             rows_map.update({row_name: location_name})
 
             # prepare rack data. We will upload it a little bit later
             rack = {}
-            rack['custom_fields'] = {}
+            rack["custom_fields"] = {}
             rack.update({"name": rack_name})
             rack.update({"size": height})
             rack.update({"rt_id": rack_id})  # we will remove this later
-            rack['asset_tag'] = asset_no
+            rack["asset_tag"] = asset_no
             if comment:
-                rack['comments'] = '\n\n' + comment.replace("\n", "\n\n")
+                rack["comments"] = "\n\n" + comment.replace("\n", "\n\n")
             else:
-                rack['comments'] = ''
+                rack["comments"] = ""
             if config["Misc"]["ROW_AS_ROOM"]:
                 rack.update({"room": row_name})
                 rack.update({"building": location_name})
@@ -1694,11 +1673,11 @@ class DB(object):
             netbox_rack["name"] = rack["name"]
             logger.debug("attempting to get site {} from netbox dict".format(rack["building"]))
             netbox_rack["site"] = netbox_sites_by_comment[rack["building"]]["id"]
-            netbox_rack["comments"] = rack["room"] + rack['comments']
-            netbox_rack['custom_fields'] = {}
-            netbox_rack['custom_fields']['rt_id'] = str(rack['rt_id'])
-            if rack['asset_tag']:
-                netbox_rack['asset_tag'] = rack['asset_tag']
+            netbox_rack["comments"] = rack["room"] + rack["comments"]
+            netbox_rack["custom_fields"] = {}
+            netbox_rack["custom_fields"]["rt_id"] = str(rack["rt_id"])
+            if rack["asset_tag"]:
+                netbox_rack["asset_tag"] = rack["asset_tag"]
             rt_tags = self.get_tags_for_obj("rack", rack["rt_id"])
             # print(rt_tags)
             tags = []
@@ -1861,7 +1840,6 @@ class DB(object):
                     interior += 1
                 elif tag == "rear":
                     rear += 1
-            
 
             if front and interior and rear:  # full depth
                 height = front
@@ -2058,9 +2036,9 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"SELECT id FROM Object WHERE " 
+            q = f"SELECT id FROM Object WHERE "
             # q = q + "Object.id >= 7700 and "
-            q = q +f"""{config["Misc"]["device_data_filter_obj_only"]} """
+            q = q + f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
         ids = [x[0] for x in idsx]
@@ -2144,7 +2122,7 @@ class DB(object):
             #                 LEFT JOIN Location ON Rack.location_id = Location.id
             #                 LEFT JOIN Chapter on Dictionary.chapter_id = Chapter.id
             #                 WHERE Object.id = {dev_id}
-            #                 AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275) 
+            #                 AND Object.objtype_id not in (2,9,1504,1505,1506,1507,1560,1561,1562,50275)
             #                 {config["Misc"]["device_data_filter"]} """
             #     logger.debug(q)
 
@@ -2157,11 +2135,12 @@ class DB(object):
             #         self.process_data(data, dev_id)
         logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
+
     def get_obj_location(self, obj_id):
         # position check:
         position, height, depth, mount = self.get_hardware_size(obj_id)
 
-        if position: # u position exists. can find rack id in rackspace table
+        if position:  # u position exists. can find rack id in rackspace table
             if not self.con:
                 self.connect()
 
@@ -2178,24 +2157,18 @@ class DB(object):
             rack_id = idsx[0][0]
             location_name = idsx[0][1]
             rack_name = idsx[0][2]
-            output_data = { "rack_mounted": True, 
-                            "rack_id": rack_id ,
-                            "rack_name": rack_name,
-                            "location": location_name,
-                            "position_data": {  "u": position, 
-                                                "height": height,
-                                                "depth": depth,
-                                                "face": mount
-                                                }
-                        }
+            output_data = {
+                "rack_mounted": True,
+                "rack_id": rack_id,
+                "rack_name": rack_name,
+                "location": location_name,
+                "position_data": {"u": position, "height": height, "depth": depth, "face": mount},
+            }
 
-        else: 
+        else:
             data = self.get_0u_obj_location(obj_id)
-            output_data = { "rack_mounted": False, 
-                            "rack_id": data[0],
-                            "rack_name": data[1],
-                            "location": data[5]}
-        
+            output_data = {"rack_mounted": False, "rack_id": data[0], "rack_name": data[1], "location": data[5]}
+
         return output_data
 
     def get_0u_obj_location(self, obj_id):
@@ -2326,12 +2299,12 @@ class DB(object):
 
                 if note:
                     note = note.replace("\n", "\n\n")  # markdown. all new lines need two new lines
-            
+
             if hardware:
                 if note:
-                    note = "hardware: "+hardware + "\n\n" + note
+                    note = "hardware: " + hardware + "\n\n" + note
                 else:
-                    note = "hardware: "+hardware
+                    note = "hardware: " + hardware
 
             if not "tags" in devicedata.keys():
                 rt_tags = self.get_tags_for_obj("object", int(devicedata["custom_fields"]["rt_id"]))
@@ -2427,7 +2400,7 @@ class DB(object):
 
                 netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
                 devicedata["site"] = netbox_sites_by_comment[rlocation_name]["id"]
-                devicedata["device_role"] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
+                devicedata["device_role"] = config["Misc"]["DEFAULT_DEVICE_ROLE_ID"]
                 # devicedata['device_type'] = 22
                 if not "hardware" in devicedata.keys():
                     if height == None:
@@ -2441,8 +2414,8 @@ class DB(object):
                             generic_depth = "short_"
                     devicedata["hardware"] = f"generic_{height}u_{generic_depth}device"
                 logger.debug(devicedata["hardware"])
-                devicedata['device_type'] = netbox.device_type_checker(devicedata["hardware"])
-                if devicedata['device_type'] == None:
+                devicedata["device_type"] = netbox.device_type_checker(devicedata["hardware"])
+                if devicedata["device_type"] == None:
                     if not devicedata["hardware"] in self.skipped_devices.keys():
                         self.skipped_devices[devicedata["hardware"]] = 1
                     else:
@@ -2466,10 +2439,10 @@ class DB(object):
                         print("")
                         ports = self.get_ports_by_device(self.all_ports, dev_id)
                         pp.pprint(ports)
-                        
+
                         ip_ints = self.get_devices_ips_ints(dev_id)
                         pp.pprint(ip_ints)
-                        netbox.create_device_interfaces(dev_id,ports,ip_ints)
+                        netbox.create_device_interfaces(dev_id, ports, ip_ints)
                         # ports = False
                         # if ports:
                         #     for item in ports:
@@ -2540,6 +2513,7 @@ class DB(object):
                 msg = f"\n-----------------------------------------------------------------------\
                 \n[!] INFO: {msg2} "
                 logger.info(msg)
+
     def get_devices_ips_ints(self, dev_id):
         ipv4_ints = self.get_device_ipv4_ints(dev_id)
         ipv6_ints = self.get_device_ipv6_ints(dev_id)
@@ -2578,7 +2552,7 @@ class DB(object):
 
             if not nic_name in interfaces.keys():
                 interfaces[nic_name] = []
-            interfaces[nic_name].append(ip+'/32')
+            interfaces[nic_name].append(ip + "/32")
         return interfaces
 
     def get_device_ipv6_ints(self, dev_id):
@@ -2606,7 +2580,7 @@ class DB(object):
             ip = self.convert_ip_v6(rawip)
             if not nic_name in interfaces.keys():
                 interfaces[nic_name] = []
-            interfaces[nic_name].append(ip+'/128')
+            interfaces[nic_name].append(ip + "/128")
         return interfaces
 
     def get_device_to_ip(self):
@@ -2641,7 +2615,6 @@ class DB(object):
             if nic_name:
                 devmap.update({"tag": nic_name})
             netbox.post_ip(devmap)
-    
 
     def get_pdus(self):
         if not self.con:
@@ -2657,7 +2630,7 @@ class DB(object):
                     WHERE Object.objtype_id = 2
                   """
             # q = q + "and Object.id = 7507 "
-            q = q + "and "+config['Misc']['device_data_filter_obj_only']
+            q = q + "and " + config["Misc"]["device_data_filter_obj_only"]
             print(q)
             cur.execute(q)
         data = cur.fetchall()
@@ -2666,7 +2639,6 @@ class DB(object):
         if config["Log"]["DEBUG"]:
             msg = ("PDUs", str(data))
             logger.debug(msg)
-        
 
         rack_mounted = []
         pdumap = {}
@@ -2681,11 +2653,11 @@ class DB(object):
             line = ["" if x is None else x for x in line]
             # print(line)
             pdu_id, name, label, asset_num, comment, unit_no, position, rack_id = line
-            if pdu_id not in processed_ids: # query may return pdu_id multiple times, skip if already processed
+            if pdu_id not in processed_ids:  # query may return pdu_id multiple times, skip if already processed
                 processed_ids.append(pdu_id)
                 # pdu_id, name, asset, comment, pdu_type, position, rack_id = line
                 pdu_attribs = racktables.get_attribs_for_obj(pdu_id)
-                
+
                 rt_tags = self.get_tags_for_obj("object", int(pdu_id))
                 tags = []
                 for tag in rt_tags:
@@ -2708,29 +2680,29 @@ class DB(object):
                     name = None
                     logger.info(f"skipping object rt_id:{pdu_id} as it has tags: {str(bad_tags)}")
                     continue
-                if not 'HW type' in pdu_attribs:
+                if not "HW type" in pdu_attribs:
                     # logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
                     # continue
-                    pdu_attribs['HW type'] = "generic_0u_device"
+                    pdu_attribs["HW type"] = "generic_0u_device"
 
                 # if "%GPASS%" in pdu_attribs['HW type']:
-                pdu_type = pdu_attribs['HW type'].replace("%GPASS%", " ")
-                del(pdu_attribs['HW type'])
-                pdu_attribs['rt_id'] = str(pdu_id)
+                pdu_type = pdu_attribs["HW type"].replace("%GPASS%", " ")
+                del pdu_attribs["HW type"]
+                pdu_attribs["rt_id"] = str(pdu_id)
                 if "asset_tag" in pdu_attribs.keys():
-                    del(pdu_attribs['asset_tag'])
+                    del pdu_attribs["asset_tag"]
 
                 pdu_type = self.remove_links(pdu_type[:64])
                 name = self.remove_links(name)
-                pdudata.update({"name": name })
+                pdudata.update({"name": name})
                 pdudata.update({"notes": comment})
                 pdudata.update({"pdu_model": pdu_type})
                 pdudata.update({"custom_fields": pdu_attribs})
                 pdudata.update({"asset_tag": asset_num})
-                pdudata.update({"rack":rack_id})
-                pdudata['device_type'] = netbox.device_type_checker(pdudata['pdu_model'])
-                if pdudata['device_type'] == None:
-                    if not pdudata['pdu_model'] in self.skipped_devices.keys():
+                pdudata.update({"rack": rack_id})
+                pdudata["device_type"] = netbox.device_type_checker(pdudata["pdu_model"])
+                if pdudata["device_type"] == None:
+                    if not pdudata["pdu_model"] in self.skipped_devices.keys():
                         self.skipped_devices[pdudata["pdu_model"]] = 1
                     else:
                         self.skipped_devices[pdudata["pdu_model"]] = self.skipped_devices[pdudata["pdu_model"]] + 1
@@ -2754,25 +2726,25 @@ class DB(object):
                         position, height, depth, mount = self.get_hardware_size(pdu_id)
                         print("got here")
                         if True:
-                        # try:
-                            rack_data = netbox.get_rack_by_rt_id(pdudata['rack'])
-                            site_id = rack_data['site']['id']
-                            rack_id = rack_data['id']
-                            
+                            # try:
+                            rack_data = netbox.get_rack_by_rt_id(pdudata["rack"])
+                            site_id = rack_data["site"]["id"]
+                            rack_id = rack_data["id"]
+
                             if position:
                                 rdata = {}
                                 rdata.update({"position": position})
                                 rdata.update({"face": mount})
                                 rdata.update({"rack": rack_id})
-                                rdata['device_role'] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
-                                rdata['device_type'] = pdudata['device_type']
-                                rdata.update({"name": pdudata['name'] })
-                                rdata['site'] = site_id
-                                rdata.update({"comments": pdudata['notes']})
-                                rdata['custom_fields'] = pdudata['custom_fields']
-                                if pdudata['asset_tag']:
-                                    if pdudata['asset_tag'].strip() != "":
-                                        rdata['asset_tag'] = pdudata['asset_tag']
+                                rdata["device_role"] = config["Misc"]["DEFAULT_DEVICE_ROLE_ID"]
+                                rdata["device_type"] = pdudata["device_type"]
+                                rdata.update({"name": pdudata["name"]})
+                                rdata["site"] = site_id
+                                rdata.update({"comments": pdudata["notes"]})
+                                rdata["custom_fields"] = pdudata["custom_fields"]
+                                if pdudata["asset_tag"]:
+                                    if pdudata["asset_tag"].strip() != "":
+                                        rdata["asset_tag"] = pdudata["asset_tag"]
                                 # pp.pprint(rdata)
                                 logger.info(f"adding 0U pdu: {rdata['name']}")
                                 print("IM HEREE")
@@ -2798,36 +2770,36 @@ class DB(object):
                 # It's Zero-U then
                 elif process:
                     print("0u pdu")
-                    
+
                     rt_rack_id = self.get_rack_id_for_zero_us(pdu_id)
                     rack_data = netbox.get_rack_by_rt_id(rt_rack_id)
-                    site_id = rack_data['site']['id']
-                    rack_id = rack_data['id']
+                    site_id = rack_data["site"]["id"]
+                    rack_id = rack_data["id"]
                     # pp.pprint(dict(rack_data))
                     pdudata["rack"] = rack_id
-                    
+
                     # exit(22)
                     if rack_id:
 
                         mount = "rear"
                         rdata = {}
-                # pdudata.update({"name": name })
-                # pdudata.update({"notes": comment})
-                # pdudata.update({"pdu_model": pdu_type})
-                # pdudata.update({"custom_fields": pdu_attribs})
-                # pdudata.update({"asset_tag": asset_num})
-                # pdudata.update({"rack":rack_id})
+                        # pdudata.update({"name": name })
+                        # pdudata.update({"notes": comment})
+                        # pdudata.update({"pdu_model": pdu_type})
+                        # pdudata.update({"custom_fields": pdu_attribs})
+                        # pdudata.update({"asset_tag": asset_num})
+                        # pdudata.update({"rack":rack_id})
                         try:
                             rdata.update({"rack": rack_id})
-                            rdata['device_role'] = config["Misc"]['DEFAULT_DEVICE_ROLE_ID']
-                            rdata['device_type'] = pdudata['device_type']
-                            rdata.update({"name": pdudata['name'] })
-                            rdata['site'] = site_id
-                            rdata.update({"comments": pdudata['notes']})
-                            rdata['custom_fields'] = pdudata['custom_fields']
-                            if pdudata['asset_tag']:
-                                if pdudata['asset_tag'].strip() != "":
-                                    rdata['asset_tag'] = pdudata['asset_tag']
+                            rdata["device_role"] = config["Misc"]["DEFAULT_DEVICE_ROLE_ID"]
+                            rdata["device_type"] = pdudata["device_type"]
+                            rdata.update({"name": pdudata["name"]})
+                            rdata["site"] = site_id
+                            rdata.update({"comments": pdudata["notes"]})
+                            rdata["custom_fields"] = pdudata["custom_fields"]
+                            if pdudata["asset_tag"]:
+                                if pdudata["asset_tag"].strip() != "":
+                                    rdata["asset_tag"] = pdudata["asset_tag"]
                             rdata.update({"face": mount})
                             # pp.pprint(rdata)
                             logger.info(f"adding 0U pdu: {rdata['name']}")
@@ -2845,12 +2817,13 @@ class DB(object):
                         logger.error(f"could not find rack for PDU rt_id: {pdu_id}")
         logger.debug("skipped devices:")
         pp.pprint(self.skipped_devices)
+
     def get_patch_panels(self):
         if not self.all_ports:
             self.get_ports()
         if not self.con:
             self.connect()
-        
+
         with self.con:
             cur = self.con.cursor()
             q = """SELECT
@@ -2867,7 +2840,6 @@ class DB(object):
         data = cur.fetchall()
         cur.close()
         self.con = None
-        
 
         if config["Log"]["DEBUG"]:
             msg = ("PDUs", str(data))
@@ -2880,9 +2852,9 @@ class DB(object):
             # pp.pprint(attribs)
             location_data = self.get_obj_location(item[0])
             # pp.pprint(location_data)
-            rack_data = netbox.get_rack_by_rt_id(location_data['rack_id'])
-            site_id = rack_data['site']['id']
-            rack_id = rack_data['id']
+            rack_data = netbox.get_rack_by_rt_id(location_data["rack_id"])
+            site_id = rack_data["site"]["id"]
+            rack_id = rack_data["id"]
             patch_type = "singular"
             port_type = None
             port_list = []
@@ -2901,13 +2873,12 @@ class DB(object):
                         for port in ports:
                             # print(port)
                             pp_data = {
-                                    "name": port[0],
-                                    "port_type": port[2][:12],
-                                    # "number_of_ports": 1,
-                                    # "number_of_ports_in_row": 1,
-                                }
+                                "name": port[0],
+                                "port_type": port[2][:12],
+                                # "number_of_ports": 1,
+                                # "number_of_ports_in_row": 1,
+                            }
                             port_list.append(pp_data)
-                            
 
                 if patch_type == "singular":
                     port_type = ports[0][2][:12]
@@ -2919,21 +2890,19 @@ class DB(object):
             payload = {
                 "name": item[1],
                 # "type": patch_type,
-                
                 # "comments": item[4],
                 "custom_fields": attribs,
-                
-                "device_role": config["Misc"]['DEFAULT_DEVICE_ROLE_ID'],
+                "device_role": config["Misc"]["DEFAULT_DEVICE_ROLE_ID"],
                 "site": site_id,
             }
             if item[4]:
-                payload['comments'] = item[4]
-            if location_data['rack_mounted']:
-                payload.update({"position": location_data['position_data']['u']})
-                payload.update({"face": location_data['position_data']['face']})
-                payload.update( {'device_type': netbox.device_type_checker("generic_1u_patch_panel")} )
+                payload["comments"] = item[4]
+            if location_data["rack_mounted"]:
+                payload.update({"position": location_data["position_data"]["u"]})
+                payload.update({"face": location_data["position_data"]["face"]})
+                payload.update({"device_type": netbox.device_type_checker("generic_1u_patch_panel")})
             else:
-                payload.update( {'device_type': netbox.device_type_checker("generic_0u_patch_panel")} )
+                payload.update({"device_type": netbox.device_type_checker("generic_0u_patch_panel")})
             payload.update({"rack": rack_id})
 
             # if port_type is not None:
@@ -2945,7 +2914,7 @@ class DB(object):
             netbox.post_device(payload)
             pp.pprint(payload)
             # exit(3)
-            
+
             print("")
 
     def get_ports(self):
