@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 __version__ = 1.00
 
-import configparser
+import os
 import json
 import logging
 from os import replace
@@ -211,7 +211,7 @@ class NETBOX(object):
                 return self.device_type_checker(device_model_name, False)
             else:
                 logger.debug("did not find matching device template in netbox")
-                if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
+                if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == True:
                     logger.debug("device with no matching template by slugname {nb_slug} found")
                     exit(112)
         else:
@@ -1653,7 +1653,7 @@ class DB(object):
 
         # # upload rows as rooms
         # if config['Misc']['ROW_AS_ROOM']:
-        #     if config['Log']['DEBUG'] == "True":
+        #     if config['Log']['DEBUG'] == True:
         #         msg = ('Rooms', str(rows_map))
         #         logger.debug(msg)
         #     print("roomdata:")
@@ -1932,7 +1932,7 @@ class DB(object):
         logger.debug("the following device types have no matching device templates:")
         for unmatched_device_type in sorted(unmatched.keys()):
             logger.debug(unmatched_device_type)
-        if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == "True":
+        if not config["Misc"]["SKIP_DEVICES_WITHOUT_TEMPLATE"] == True:
             if len(unmatched) > 0:
                 logger.debug("")
                 logger.debug(
@@ -3045,8 +3045,17 @@ if __name__ == "__main__":
     # configfile = "conf"
     # config = configparser.RawConfigParser()
     # config.read(configfile)
-    with open("conf.yaml", "r") as stream:
-        config = yaml.safe_load(stream)
+    if os.environ.get('rt2nb_conf_file_name'):
+        conf_file_name = os.environ.get('rt2nb_conf_file_name')
+    else:
+        conf_file_name = "conf.yaml"
+    try:
+        with open(conf_file_name, "r") as stream:
+            config = yaml.safe_load(stream)
+    except:
+        with open("../" + conf_file_name, "r") as stream:
+            config = yaml.safe_load(stream)
+
 
     # Initialize Data pretty printer
     pp = pprint.PrettyPrinter(indent=4, width=100)
@@ -3073,8 +3082,12 @@ if __name__ == "__main__":
     logger.addHandler(ch)
 
     # Load lookup map of yaml data
-    with open("hardware_map.yaml", "r") as stream:
-        device_type_map_preseed = yaml.safe_load(stream)
+    try:
+        with open("hardware_map.yaml", "r") as stream:
+            device_type_map_preseed = yaml.safe_load(stream)
+    except:
+        with open("../hardware_map.yaml", "r") as stream:
+            device_type_map_preseed = yaml.safe_load(stream)
 
     py_netbox = pynetbox.api(config["NetBox"]["NETBOX_HOST"], token=config["NetBox"]["NETBOX_TOKEN"])
 
@@ -3082,28 +3095,28 @@ if __name__ == "__main__":
 
     netbox = NETBOX(py_netbox)
     racktables = DB()
-    if config["Migrate"]["TAGS"] == "True":
+    if config["Migrate"]["TAGS"] == True:
         logger.debug("running get tags")
         racktables.get_tags()
-    if config["Migrate"]["CUSTOM_ATTRIBUTES"] == "True":
+    if config["Migrate"]["CUSTOM_ATTRIBUTES"] == True:
         logger.debug("running get_custom_attribs")
         racktables.get_custom_attribs()
-    if config["Migrate"]["INFRA"] == "True":
+    if config["Migrate"]["INFRA"] == True:
         logger.debug("running get infra")
         racktables.get_infrastructure()
-    if config["Migrate"]["VLAN"] == "True":
+    if config["Migrate"]["VLAN"] == True:
         racktables.get_vlan_domains()
         racktables.get_vlans()
-    if config["Migrate"]["SUBNETS"] == "True":
+    if config["Migrate"]["SUBNETS"] == True:
         logger.debug("running get subnets")
         racktables.get_subnets()
         racktables.get_subnets_v6()
-    if config["Migrate"]["IPS"] == "True":
+    if config["Migrate"]["IPS"] == True:
         logger.debug("running get ips")
 
         racktables.get_ips()
         racktables.get_ips_v6()
-    if config["Migrate"]["HARDWARE"] == "True":
+    if config["Migrate"]["HARDWARE"] == True:
         # print("running device types")
         # racktables.get_device_types()
         logger.debug("running manage hardware")
