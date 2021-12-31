@@ -1,3 +1,22 @@
+x-docker-data: &netbox-docker-info
+  image: netboxcommunity/netbox:${VERSION-v3.1-1.5.1}
+  restart: on-failure
+  depends_on:
+    - postgres
+    - redis
+    - redis-cache
+    - netbox-worker
+  env_file: env/netbox.env
+  user: 'unit:root'
+  volumes:
+    # - ./configuration.py:/opt/netbox/netbox/netbox/configuration.py
+    # - ./startup_scripts:/opt/netbox/startup_scripts:z,ro
+    # - ./initializers:/opt/netbox/initializers:z,ro
+    # - ./configuration:/etc/netbox/config:z,ro
+    # - ./reports:/etc/netbox/reports:z,ro
+    # - ./scripts:/etc/netbox/scripts:z,ro
+    - netbox-media-files:/opt/netbox/netbox/media:z
+
 services:
   rt_mysql:
     image: mariadb:latest
@@ -23,39 +42,29 @@ services:
   #     RACKTABLES_REQUIRE_LOCAL_ACCOUNT: "false"
   #   ports:
   #     - 8080:8080
-  netbox: &netbox
-    image: netboxcommunity/netbox:${VERSION-v3.1-1.5.1}
-    depends_on:
-    - postgres
-    - redis
-    - redis-cache
-    - netbox-worker
-    env_file: env/netbox.env
-    user: 'unit:root'
-    volumes:
-      # - ./configuration.py:/opt/netbox/netbox/netbox/configuration.py
-      # - ./startup_scripts:/opt/netbox/startup_scripts:z,ro
-      # - ./initializers:/opt/netbox/initializers:z,ro
-      # - ./configuration:/etc/netbox/config:z,ro
-      # - ./reports:/etc/netbox/reports:z,ro
-      # - ./scripts:/etc/netbox/scripts:z,ro
-      - netbox-media-files:/opt/netbox/netbox/media:z
+
+  netbox: 
+    <<: *netbox-docker-info
+    ports:
+      - 8000:8080
+
   netbox-worker:
-    <<: *netbox
+    <<: *netbox-docker-info
     depends_on:
-    - redis
-    - postgres
+      - redis
+      - postgres
     command:
-    - /opt/netbox/venv/bin/python
-    - /opt/netbox/netbox/manage.py
-    - rqworker
+      - /opt/netbox/venv/bin/python
+      - /opt/netbox/netbox/manage.py
+      - rqworker
+
   netbox-housekeeping:
-    <<: *netbox
+    <<: *netbox-docker-info
     depends_on:
-    - redis
-    - postgres
+      - redis
+      - postgres
     command:
-    - /opt/netbox/housekeeping.sh
+      - /opt/netbox/housekeeping.sh
 
   # postgres
   postgres:
@@ -68,23 +77,24 @@ services:
   redis:
     image: redis:6-alpine
     command:
-    - sh
-    - -c # this is to evaluate the $REDIS_PASSWORD from the env
-    - redis-server --appendonly yes --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
-    # env_file: env/redis.env
+      - sh
+      - -c # this is to evaluate the $REDIS_PASSWORD from the env
+      - redis-server --appendonly yes --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
+      # env_file: env/redis.env
     environment:
       - REDIS_PASSWORD=H733Kdjndks81
     volumes:
-    - netbox-redis-data:/data
+      - netbox-redis-data:/data
+
   redis-cache:
     image: redis:6-alpine
     environment:
       - REDIS_PASSWORD=t4Ph722qJ5QHeQ1qfu36
     command:
-    - sh
-    - -c # this is to evaluate the $REDIS_PASSWORD from the env
-    - redis-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
-    # env_file: env/redis-cache.env
+      - sh
+      - -c # this is to evaluate the $REDIS_PASSWORD from the env
+      - redis-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
+      # env_file: env/redis-cache.env
 
 volumes:
   netbox-media-files:
