@@ -1,0 +1,77 @@
+---
+
+by_key_name:
+  Dell PowerEdge R620:
+    slug: dell_poweredge_r620
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Dell/PowerEdge_R620.yaml
+  Dell PowerEdge R610:
+    slug: dell_poweredge_r610
+    yaml_file: custom_device_templates/dell_r610.yml
+  # if you have typos eg Poweredge instead of PowerEdge you can point to a previously imported slug like this. 
+  # include yaml_file incase its not imported yet
+  Dell Poweredge R610:
+    slug: dell_poweredge_r610
+    yaml_file: custom_device_templates/dell_r610.yml
+
+
+  # generic
+  generic_0u_device:
+    slug: generic_0u_device
+    yaml_file: custom_device_templates/generic/generic_0u_device.yml
+  generic_0u_patch_panel:
+    slug: generic_0u_patch_panel
+    yaml_file: custom_device_templates/generic/generic_0u_patch_panel.yml
+  generic_1u_device:
+    slug: generic_1u_device
+    yaml_file: custom_device_templates/generic/generic_1u_device.yml
+  generic_1u_short_device:
+    slug: generic_1u_short_device
+    yaml_file: custom_device_templates/generic/generic_1u_short_device.yml
+  generic_1u_patch_panel:
+    slug: generic_1u_patch_panel
+    yaml_file: custom_device_templates/generic/generic_1u_patch_panel.yml
+  generic_2u_device:
+    slug: generic_2u_device
+    yaml_file: custom_device_templates/generic/generic_2u_device.yml
+  generic_2u_short_device:
+    slug: generic_2u_short_device
+    yaml_file: custom_device_templates/generic/generic_2u_short_device.yml
+  generic_3u_device:
+    slug: generic_3u_device
+    yaml_file: custom_device_templates/generic/generic_3u_device.yml
+  generic_3u_short_device:
+    slug: generic_3u_short_device
+    yaml_file: custom_device_templates/generic/generic_3u_short_device.yml
+  generic_4u_device:
+    slug: generic_4u_device
+    yaml_file: custom_device_templates/generic/generic_4u_device.yml
+  generic_4u_short_device:
+    slug: generic_4u_short_device
+    yaml_file: custom_device_templates/generic/generic_4u_short_device.yml
+  generic_6u_device:
+    slug: generic_6u_device
+    yaml_file: custom_device_templates/generic/generic_6u_device.yml
+  generic_9u_device:
+    slug: generic_9u_device
+    yaml_file: custom_device_templates/generic/generic_9u_device.yml
+  generic_10u_device:
+    slug: generic_10u_device
+    yaml_file: custom_device_templates/generic/generic_10u_device.yml
+  generic_12u_device:
+    slug: generic_12u_device
+    yaml_file: custom_device_templates/generic/generic_12u_device.yml
+  generic_22u_device:
+    slug: generic_22u_device
+    yaml_file: custom_device_templates/generic/generic_22u_device.yml
+  generic_23u_device:
+    slug: generic_23u_device
+    yaml_file: custom_device_templates/generic/generic_23u_device.yml
+  generic_24u_device:
+    slug: generic_24u_device
+    yaml_file: custom_device_templates/generic/generic_24u_device.yml
+  generic_46u_device:
+    slug: generic_46u_device
+    yaml_file: custom_device_templates/generic/generic_46u_device.yml
+  generic_48u_device:
+    slug: generic_48u_device
+    yaml_file: custom_device_templates/generic/generic_48u_device.yml
