@@ -98,14 +98,13 @@ services:
       - sh
       - -c # this is to evaluate the $REDIS_PASSWORD from the env
       - redis-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
-      # env_file: env/redis-cache.env
+    # env_file: env/redis-cache.env
   rt2nb_runner:
     image: python:3.9-bullseye
     restart: on-failure
     command:
-      - tail
-      - -f
-      - /dev/null
+      - sh
+      - /opt/repo/development/rt2nb_runner_entrypoint.sh
     volumes:
       - ../:/opt/repo
     environment:
