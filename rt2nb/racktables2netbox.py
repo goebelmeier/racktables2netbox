@@ -977,6 +977,8 @@ class NETBOX(object):
         all_custom_fields = {str(item): item for item in nb.extras.custom_fields.all()}
         logger.debug(all_custom_fields)
         for custom_field in attributes:
+            custom_field["label"] = copy.copy(custom_field["name"])
+            custom_field["name"] = str(slugify.slugify(custom_field["name"], separator="_", replacements=[["/", ""], ["-", "_"]]))
             try:
                 # print(custom_field["name"])
                 # print(all_custom_fields[custom_field["name"]])
@@ -1039,6 +1041,7 @@ class NETBOX(object):
                     logger.debug(f"Device Type Created: {dt.name} - " + f"{dt.type} ")
                     # print("test")
                 except Exception as e:
+                    logger.error(f"failed to add custom field: {custom_field['name']}")
                     logger.debug(e)
 
     def get_rack_by_rt_id(self, rt_id):
@@ -3083,7 +3086,7 @@ if __name__ == "__main__":
         with open(conf_file_name, "r") as stream:
             config = yaml.safe_load(stream)
     except:
-        with open("../" + conf_file_name, "r") as stream:
+        with open(os.getcwd() + "/" + conf_file_name, "r") as stream:
             config = yaml.safe_load(stream)
 
     # Initialize Data pretty printer
@@ -3115,7 +3118,7 @@ if __name__ == "__main__":
         with open("hardware_map.yaml", "r") as stream:
             device_type_map_preseed = yaml.safe_load(stream)
     except:
-        with open("../hardware_map.yaml", "r") as stream:
+        with open(os.getcwd() + "/hardware_map.yaml", "r") as stream:
             device_type_map_preseed = yaml.safe_load(stream)
 
     py_netbox = pynetbox.api(config["NetBox"]["NETBOX_HOST"], token=config["NetBox"]["NETBOX_TOKEN"])
