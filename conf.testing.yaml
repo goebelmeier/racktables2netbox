@@ -1,24 +1,25 @@
 #:===== MySQL Source (Racktables):===== #
 MySQL:
-  DB_IP: racktables.example.net
+  DB_IP: rt_mysql
   DB_PORT: 3306
   DB_NAME: racktables
-  DB_USER: netbox
-  DB_PWD: PASSWORD
+  DB_USER: racktables
+  DB_PWD: racktables_dev
 #:===== Log settings:=================== #
 Log:
   LOGFILE: logs/migration.log
   DEBUG_LOG: logs/debug.log
   CLEAN_LOG: logs/clean_netbox.log
-  STDOUT : True  # print to STDOUT
-  DEBUG  : True  # write debug log
+  STDOUT: True  # print to STDOUT
+  DEBUG: True  # write debug log
 #:===== NetBox upload settings:======== #
 NetBox:
-  NETBOX_TOKEN: NETBOX_API_TOKEN
-  NETBOX_HOST: https://netbox.example.net
+  NETBOX_TOKEN: 0123456789abcdef0123456789abcdef01234567
+  NETBOX_HOST: http://netbox:8080
 #:===== Data to Migrate:======== #
 Migrate:
   TAGS: True
+  CUSTOM_ATTRIBUTES: True
   INFRA: True
   VLAN: True
   SUBNETS: True
@@ -30,10 +31,10 @@ Misc:
   SKIP_DEVICES_WITHOUT_TEMPLATE: True
   SKIP_OBJECTS_WITH_TAGS: Decommissioned_gone
   CHILD_AS_BUILDING: True  # use RTs sub-location as Device42 building. If False, use it as a Device42 room.
-  ROW_AS_ROOM: True  # use RTs row as Device42 room.
+  ROW_AS_ROOM: False  # use RTs row as Device42 room.
   # Note: Rooms are required because racks are mounted to rooms, not to buildings!
   PDU_MOUNT: left  # Can be one of: left, right, above, below. Used for Zero-U PDU migration. Default is left
-  PDU_ORIENTATION: front  # can be one of: front, back. Used for Zero-U PDU migration. Default is front
+  PDU_ORIENTATION: rear  # can be one of: front, back. Used for Zero-U PDU migration. Default is front
   CUSTOM_FIELD_MAPPER: 
     OEM S/N 1: serial
   hardware_data_filter: >-

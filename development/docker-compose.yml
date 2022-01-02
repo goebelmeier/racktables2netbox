@@ -95,6 +95,16 @@ services:
       - -c # this is to evaluate the $REDIS_PASSWORD from the env
       - redis-server --requirepass $$REDIS_PASSWORD ## $$ because of docker-compose
       # env_file: env/redis-cache.env
+  rt2nb_runner:
+    image: python:3.9-bullseye
+    command:
+      - tail
+      - -f
+      - /dev/null
+    volumes:
+      - ../:/opt/repo
+    environment:
+      - rt2nb_conf_file_name=conf.testing.yaml
 
 volumes:
   netbox-media-files:
