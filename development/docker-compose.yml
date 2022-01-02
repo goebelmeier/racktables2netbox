@@ -20,6 +20,7 @@ x-docker-data: &netbox-docker-info
 services:
   rt_mysql:
     image: mariadb:latest
+    restart: on-failure
     ports:
       - 3306:3306
     volumes:
@@ -69,6 +70,7 @@ services:
   # postgres
   postgres:
     image: postgres:14-alpine
+    restart: on-failure
     env_file: env/postgres.env
     volumes:
     - netbox-postgres-data:/var/lib/postgresql/data
@@ -76,6 +78,7 @@ services:
   # redis
   redis:
     image: redis:6-alpine
+    restart: on-failure
     command:
       - sh
       - -c # this is to evaluate the $REDIS_PASSWORD from the env
@@ -88,6 +91,7 @@ services:
 
   redis-cache:
     image: redis:6-alpine
+    restart: on-failure
     environment:
       - REDIS_PASSWORD=t4Ph722qJ5QHeQ1qfu36
     command:
@@ -97,6 +101,7 @@ services:
       # env_file: env/redis-cache.env
   rt2nb_runner:
     image: python:3.9-bullseye
+    restart: on-failure
     command:
       - tail
       - -f
@@ -105,6 +110,9 @@ services:
       - ../:/opt/repo
     environment:
       - rt2nb_conf_file_name=conf.testing.yaml
+    depends_on:
+      - netbox
+      - rt_mysql
 
 volumes:
   netbox-media-files:
