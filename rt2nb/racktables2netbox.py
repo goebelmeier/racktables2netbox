@@ -20,6 +20,8 @@ from time import sleep
 import yaml
 import copy
 import datetime
+import re
+import ipcalc
 
 
 class Migrator:
@@ -321,12 +323,15 @@ class NETBOX(object):
         logger.debug(groups)
         return groups
 
-    def post_vlan_group(self, group_name):
+    def post_vlan_group(self, group_name, rt_id):
         url = self.base_url + "/ipam/vlan-groups/"
         data = {}
         data["name"] = str(group_name)
         data["description"] = str(group_name)
-        data["slug"] = str(group_name).lower().replace(" ", "-").replace(":", "")
+        slug_prep = str(group_name).lower().replace(" ", "-").replace(":", "")
+        data["slug"] = slugify.slugify(slug_prep, separator="_")
+        data["custom_fields"] = {"rt_id": rt_id}
+        pp.pprint(data)
         if not self.check_for_vlan_group(group_name)[0]:
             self.uploader2(data, url)
 
@@ -1058,6 +1063,30 @@ class NETBOX(object):
         else:
             return None
 
+    def get_site_by_rt_id(self, rt_id):
+        nb = self.py_netbox
+        sites = [item for item in nb.dcim.sites.filter(cf_rt_id=rt_id)]
+        logger.debug(sites)
+        if len(sites) == 1:
+            return sites[0]
+        elif len(sites) > 1:
+            for rack in sites:
+                if rack["custom_fields"]["rt_id"] == str(rt_id):
+                    return rack
+            return None
+        else:
+            return None
+
+    def manage_sites(self, rt_sites_map):
+        nb = self.py_netbox
+        current_sites = [str(item) for item in nb.dcim.sites.all()]
+
+        for rt_id, name in rt_sites_map.items():
+            if not name in current_sites:
+                pp.pprint(f"{name} not in netbox, adding")
+                site_data = {"description": name, "name": name, "slug": slugify.slugify(name), "custom_fields": {"rt_id": str(rt_id)}}
+                print(nb.dcim.sites.create(site_data))
+
 
 class DB(object):
     """
@@ -1318,8 +1347,10 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
+            print(line)
             sid, raw_sub, mask, last_ip, name, comment, vlan_domain_id, vlan_id, ipv6net_id = line
             subnet = self.convert_ip_v6(raw_sub)
+
             rt_tags = self.get_tags_for_obj("ipv6net", sid)
             # print(rt_tags)
             tags = []
@@ -1339,10 +1370,17 @@ class DB(object):
                 except:
                     logger.debug("failed to find vlan for subnet {}".format(subnet))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
+            ip_calc_net = ipcalc.Network(subs['prefix'])
+            print(ip_calc_net.subnet())
+            print(ip_calc_net.network())
+            ip_calc_net2 = ipcalc.Network(str(ip_calc_net.network())+"/"+str(ip_calc_net.subnet()))
+            cleaned_prefix = str(ip_calc_net2.to_compressed())+"/"+str(ip_calc_net2.subnet())
+            subs.update({"prefix": cleaned_prefix})
             subs.update({"status": "active"})
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
             subs.update({"tags": tags})
+            pp.pprint(subs)
             netbox.post_subnet(subs)
 
     def get_tags_for_obj(self, tag_type, object_id):
@@ -1478,10 +1516,12 @@ class DB(object):
 
         for line in resp:
             id, group_id, description = line
-            netbox.post_vlan_group(description)
+            print(description)
+            netbox.post_vlan_group(description, group_id)
 
     def create_vlan_domains_nb_group_map(self):
         nb_groups = netbox.get_vlan_groups_by_name()
+        pp.pprint(nb_groups)
         # self.vlan_group_map
         groups_by_rt_id = {}
         if not self.con:
@@ -1499,6 +1539,7 @@ class DB(object):
 
         for line in resp:
             id, group_id, description = line
+            description = re.sub(r"\W+", "", description)
             groups_by_rt_id[id] = nb_groups[description]
         self.vlan_group_map = groups_by_rt_id
 
@@ -1569,66 +1610,24 @@ class DB(object):
         rackgroups = []
         racks = []
 
-        # if not self.con:
-        #     self.connect()
+        if not self.con:
+            self.connect()
 
-        # # ============ BUILDINGS AND ROOMS ============
-        # with self.con:
-        #     cur = self.con.cursor()
-        #     q = """SELECT id, name, parent_id, parent_name FROM Location"""
-        #     cur.execute(q)
-        #     raw = cur.fetchall()
+        # ============ BUILDINGS ============
+        with self.con:
+            cur = self.con.cursor()
+            q = """SELECT id, name, parent_id, parent_name FROM Location"""
+            cur.execute(q)
+            raw = cur.fetchall()
 
-        #     for rec in raw:
-        #         location_id, location_name, parent_id, parent_name = rec
-        #         if not parent_name:
-        #             sites_map.update({location_id: location_name})
-        #         else:
-        #             rooms_map.update({location_name: parent_name})
-        #     cur.close()
-        #     self.con = None
-        # print("Sites:")
-        # pp.pprint(sites_map)
-
-        # pp.pprint(rooms_map)
-
-        # print("Rack Groups:")
-        # for room, parent in list(rooms_map.items()):
-        #     if parent in sites_map.values():
-        #         if room in rooms_map.values():
-        #             continue
-
-        #     rackgroup = {}
-
-        #     if room not in sites_map.values():
-        #         name = parent + "-" + room
-        #         rackgroup.update({"site": rooms_map[parent]})
-        #     else:
-        #         name = room
-        #         rackgroup.update({"site": parent})
-
-        #     rackgroup.update({"name": name})
-
-        #     rackgroups.append(rackgroup)
-
-        # for site_id, site_name in list(sites_map.items()):
-        #     if site_name not in rooms_map.values():
-        #         rackgroup = {}
-        #         rackgroup.update({"site": site_name})
-        #         rackgroup.update({"name": site_name})
-
-        #         rackgroups.append(rackgroup)
-
-        # pp.pprint(rackgroups)
-
-        # upload rooms
-        # buildings = json.loads((netbox.get_buildings()))['buildings']
-
-        #     for room, parent in list(rooms_map.items()):
-        #         roomdata = {}
-        #         roomdata.update({'name': room})
-        #         roomdata.update({'building': parent})
-        #         netbox.post_room(roomdata)
+            for rec in raw:
+                location_id, location_name, parent_id, parent_name = rec
+                sites_map.update({location_id: location_name})
+            cur.close()
+            self.con = None
+        print("Sites:")
+        pp.pprint(sites_map)
+        netbox.manage_sites(sites_map)
 
         # ============ ROWS AND RACKS ============
         netbox_sites_by_comment = netbox.get_sites_keyd_by_description()
@@ -1659,18 +1658,9 @@ class DB(object):
                 rack["comments"] = "\n\n" + comment.replace("\n", "\n\n")
             else:
                 rack["comments"] = ""
-            if config["Misc"]["ROW_AS_ROOM"]:
-                rack.update({"room": row_name})
-                rack.update({"building": location_name})
-            else:
-                row_name = row_name[:10]  # there is a 10char limit for row name
-                rack.update({"row": row_name})
-                if location_name in rooms_map:
-                    rack.update({"room": location_name})
-                    building_name = rooms_map[location_name]
-                    rack.update({"building": building_name})
-                else:
-                    rack.update({"building": location_name})
+            rack.update({"room": row_name})
+            rack.update({"building": location_name})
+
             racks.append(rack)
         pprint.pprint(racks)
 
@@ -1692,6 +1682,7 @@ class DB(object):
             msg = ("Racks", str(racks))
             # logger.debug(msg)
         for rack in racks:
+            pp.pprint(rack)
             netbox_rack = {}
             netbox_rack["name"] = rack["name"]
             logger.debug("attempting to get site {} from netbox dict".format(rack["building"]))
