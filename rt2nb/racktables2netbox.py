@@ -2486,13 +2486,13 @@ class DB(object):
 
                     # update ports
                     if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
-                        pp.pprint("got here")
-                        print("")
+                        # pp.pprint("got here")
+                        # print("")
                         ports = self.get_ports_by_device(self.all_ports, dev_id)
-                        pp.pprint(ports)
+                        # pp.pprint(ports)
 
                         ip_ints = self.get_devices_ips_ints(dev_id)
-                        pp.pprint(ip_ints)
+                        # pp.pprint(ip_ints)
                         netbox.create_device_interfaces(dev_id, ports, ip_ints)
                         # ports = False
                         # if ports:
@@ -2734,7 +2734,10 @@ class DB(object):
                 if not "HW type" in pdu_attribs:
                     # logger.info(f"skipping object rt_id:{pdu_id} as it has no hw type assigned")
                     # continue
-                    pdu_attribs["HW type"] = "generic_0u_device"
+                    if position:
+                        pdu_attribs["HW type"] = "generic_1u_short_device"
+                    else:
+                        pdu_attribs["HW type"] = "generic_0u_device"
 
                 # if "%GPASS%" in pdu_attribs['HW type']:
                 pdu_type = pdu_attribs["HW type"].replace("%GPASS%", " ")
@@ -2798,7 +2801,7 @@ class DB(object):
                                         rdata["asset_tag"] = pdudata["asset_tag"]
                                 # pp.pprint(rdata)
                                 logger.info(f"adding 0U pdu: {rdata['name']}")
-                                print("IM HEREE")
+                                
                                 logger.debug(rdata)
                                 netbox.post_device(rdata)
                                 # netbox.post_pdu_to_rack(rdata, d42_rack_id)
@@ -3175,9 +3178,8 @@ if __name__ == "__main__":
         # racktables.get_device_types()
         logger.debug("running manage hardware")
         racktables.get_devices()
-        # racktables.get_infrastructure()
-        # racktables.get_pdus()
-        # racktables.get_patch_panels()
+        racktables.get_pdus()
+        racktables.get_patch_panels()
     # racktables.get_container_map()
     # racktables.get_chassis()
     # racktables.get_vmhosts()

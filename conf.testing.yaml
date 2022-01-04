@@ -21,9 +21,9 @@ Migrate:
   TAGS: False
   CUSTOM_ATTRIBUTES: True
   INFRA: True
-  VLAN: False
-  SUBNETS: False
-  IPS: False
+  VLAN: True
+  SUBNETS: True
+  IPS: True
   HARDWARE: True
 #:===== Other settings:======== #
 Misc:
