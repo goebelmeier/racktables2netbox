@@ -14,6 +14,27 @@ by_key_name:
     yaml_file: custom_device_templates/dell_r610.yml
 
 
+
+  Dell PowerEdge 1950:
+    slug: generic_1u_device
+    yaml_file: netbox-devicetypes/generic/generic_1u_device.yml
+  Cisco Catalyst 2960-8TC-L:
+    slug: ws-c2960-8tc-l
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Cisco/WS-C2960-8TC-L.yaml
+  Cisco Catalyst 2960G-24TC-L:
+    slug: ws-c2960g-24tc-l
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Cisco/WS-C2960G-24TC-L.yaml
+  Cisco 7206VXR:
+    slug: c7206vxr
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Cisco/C7206VXR.yaml
+  Cisco Catalyst 3750G-12S:
+    slug: ws-c3750g-12s
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Cisco/WS-C3750G-12S.yaml
+  3Com 4200G 12-port:
+    slug: 4200g-12port
+    yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/3Com/4200G-12_Port.yml
+
+
   # generic
   generic_0u_device:
     slug: generic_0u_device
@@ -48,6 +69,9 @@ by_key_name:
   generic_4u_short_device:
     slug: generic_4u_short_device
     yaml_file: custom_device_templates/generic/generic_4u_short_device.yml
+  generic_5u_device:
+    slug: generic_5u_device
+    yaml_file: netbox-devicetypes/generic/generic_5u_device.yml
   generic_6u_device:
     slug: generic_6u_device
     yaml_file: custom_device_templates/generic/generic_6u_device.yml

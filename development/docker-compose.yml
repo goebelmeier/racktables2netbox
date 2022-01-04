@@ -30,19 +30,19 @@ services:
       MYSQL_DATABASE: racktables
       MYSQL_USER: racktables
       MYSQL_PASSWORD: racktables_dev
-  # racktables:
-  #   image: eltercera/docker-racktables
-  #   environment:
-  #     RACKTABLES_DB_HOST: rt_mysql
-  #     RACKTABLES_DB_NAME: racktables
-  #     RACKTABLES_DB_USERNAME: racktables
-  #     RACKTABLES_DB_PASSWORD: racktables_dev
-  #     # RACKTABLES_INIT_DB: "true"
-  #     # RACKTABLES_INIT_SAMPLE_RACKS: "true"
-  #     RACKTABLES_ADMIN_PASSWD: admin
-  #     RACKTABLES_REQUIRE_LOCAL_ACCOUNT: "false"
-  #   ports:
-  #     - 8080:8080
+  racktables:
+    image: eltercera/docker-racktables
+    environment:
+      RACKTABLES_DB_HOST: rt_mysql
+      RACKTABLES_DB_NAME: racktables
+      RACKTABLES_DB_USERNAME: racktables
+      RACKTABLES_DB_PASSWORD: racktables_dev
+      # RACKTABLES_INIT_DB: "true"
+      # RACKTABLES_INIT_SAMPLE_RACKS: "true"
+      RACKTABLES_ADMIN_PASSWD: admin
+      RACKTABLES_REQUIRE_LOCAL_ACCOUNT: "false"
+    ports:
+      - 8080:8080
 
   netbox: 
     <<: *netbox-docker-info
@@ -109,6 +109,7 @@ services:
       - ../:/opt/repo
     environment:
       - rt2nb_conf_file_name=conf.testing.yaml
+      - rt2nb_hardware_map_file_name=hardware_map.yaml.sample
     depends_on:
       - netbox
       - rt_mysql

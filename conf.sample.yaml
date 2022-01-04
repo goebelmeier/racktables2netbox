@@ -26,7 +26,7 @@ Migrate:
   HARDWARE: True
 #:===== Other settings:======== #
 Misc:
-  DEFAULT_DEVICE_ROLE_ID: 1
+  DEFAULT_DEVICE_ROLE_ID: 1 # Numeral or False
   SKIP_DEVICES_WITHOUT_TEMPLATE: True
   SKIP_OBJECTS_WITH_TAGS: Decommissioned_gone
   CHILD_AS_BUILDING: True  # use RTs sub-location as Device42 building. If False, use it as a Device42 room.
@@ -37,8 +37,8 @@ Misc:
   CUSTOM_FIELD_MAPPER: 
     OEM S/N 1: serial
   hardware_data_filter: >-
-    AND Object.has_problems: "no"
+    AND Object.has_problems = "no"
   device_data_filter: >-
-    AND Object.has_problems: "no"
+    AND Object.has_problems = "no"
   device_data_filter_obj_only: >-
-    Object.has_problems: "no"
+    Object.has_problems = "no"

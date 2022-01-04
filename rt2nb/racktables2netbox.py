@@ -371,23 +371,30 @@ class NETBOX(object):
             self.uploader(data, url)
 
     def post_device_type(self, device_type_key, device_type):
+        logger.debug("post_device_type:")
         logger.debug(device_type_key)
         logger.debug(device_type)
 
         data = {}
-        if "yaml_file" in device_type.keys():
-            filename = device_type["yaml_file"]
+        if "device_template_data" in device_type.keys():
+            import_source = device_type["device_template_data"]
+        else:
+            import_source = device_type
+
+        if "yaml_file" in import_source.keys():
+            filename = import_source["yaml_file"]
             with open(filename, "r") as stream:
                 try:
                     data = yaml.safe_load(stream)
                 except yaml.YAMLError as exc:
+                    logger.debug(f"failed to load {import_source['yaml_file']} for {device_type_key} template")
                     logger.debug(exc)
-        if "yaml_url" in device_type.keys():
+        if "yaml_url" in import_source.keys():
             try:
-                resp = requests.get(device_type["yaml_url"])
+                resp = requests.get(import_source["yaml_url"])
                 data = yaml.safe_load(resp.text)
             except:
-                logger.debug(f"failed to load {device_type['yaml_url']} for {device_type_key} template")
+                logger.debug(f"failed to load {import_source['yaml_url']} for {device_type_key} template")
 
         pp.pprint(data)
         man_data = {"name": data["manufacturer"], "slug": self.slugFormat(data["manufacturer"])}
@@ -1109,6 +1116,9 @@ class DB(object):
         self.skipped_devices = {}
         self.all_ports = None
 
+    def custom_field_name_slugger(self, name):
+        return str(slugify.slugify(name, separator="_", replacements=[["/", ""], ["-", "_"]]))
+
     def connect(self):
         """
         Connection to RT database
@@ -1623,6 +1633,7 @@ class DB(object):
             self.con = None
         print("Sites:")
         pp.pprint(sites_map)
+        sites_map[0] = "Unknown"
         netbox.manage_sites(sites_map)
 
         # ============ ROWS AND RACKS ============
@@ -2040,6 +2051,26 @@ class DB(object):
             self.get_ports()
         if not netbox.device_types:
             netbox.device_types = {str(item.slug): dict(item) for item in py_netbox.dcim.device_types.all()}
+
+        if not config["Misc"]["DEFAULT_DEVICE_ROLE_ID"]:
+            roles = {str(item.name): dict(item) for item in py_netbox.dcim.device_roles.all()}
+            pp.pprint(roles)
+            if not "rt_import" in roles.keys():
+                create_role = {
+                    "name": "rt_import",
+                    "slug": "rt_import",
+                }
+                py_netbox.dcim.device_roles.create(create_role)
+            roles = {str(item.name): dict(item) for item in py_netbox.dcim.device_roles.all()}
+            config["Misc"]["DEFAULT_DEVICE_ROLE_ID"] = roles["rt_import"]["id"]
+
+        else:
+            # check to see if device_role_id exists in nb. if not. blow up
+            roles = {str(item.id): dict(item) for item in py_netbox.dcim.device_roles.all()}
+            if not config["Misc"]["DEFAULT_DEVICE_ROLE_ID"] in roles:
+                logger.error(f"No device-role found in netbox with id: {config['Misc']['DEFAULT_DEVICE_ROLE_ID']}")
+                exit(5)
+
         if not self.con:
             self.connect()
         with self.con:
@@ -2250,7 +2281,8 @@ class DB(object):
                     attrib_type,
                 ) = x
                 logger.debug(x)
-
+                if rdesc is None:
+                    rdesc = f"No Name rt_id {rt_object_id}"
                 name = self.remove_links(rdesc)
                 if rcomment:
                     try:
@@ -2267,7 +2299,7 @@ class DB(object):
                         opsys = opsys.replace("%GSKIP%", " ")
                     if "%GPASS%" in opsys:
                         opsys = opsys.replace("%GPASS%", " ")
-                    devicedata["custom_fields"]["Operating System"] = str(opsys)
+                    devicedata["custom_fields"][self.custom_field_name_slugger("Operating System")] = str(opsys)
                 elif "SW type" in x:
                     opsys = dict_dictvalue
                     opsys = self.remove_links(opsys)
@@ -2275,7 +2307,7 @@ class DB(object):
                         opsys = opsys.replace("%GSKIP%", " ")
                     if "%GPASS%" in opsys:
                         opsys = opsys.replace("%GPASS%", " ")
-                    devicedata["custom_fields"]["SW type"] = str(opsys)
+                    devicedata["custom_fields"][self.custom_field_name_slugger("SW type")] = str(opsys)
 
                 elif "Server Hardware" in x:
                     hardware = dict_dictvalue
@@ -2298,7 +2330,7 @@ class DB(object):
                         hardware = hardware.replace("\t", " ")
                 elif "BiosRev" in x:
                     biosrev = self.remove_links(dict_dictvalue)
-                    devicedata["custom_fields"]["BiosRev"] = biosrev
+                    devicedata["custom_fields"][self.custom_field_name_slugger("BiosRev")] = biosrev
                 else:
                     if not rattr_name == None:
                         if attrib_type == "dict":
@@ -2307,14 +2339,14 @@ class DB(object):
                             attrib_value_unclean = attrib_value
                         cleaned_val = netbox.cleanup_attrib_value(attrib_value_unclean, attrib_type)
                         # print(cleaned_val)
-                        devicedata["custom_fields"][rattr_name] = cleaned_val
+                        devicedata["custom_fields"][self.custom_field_name_slugger(rattr_name)] = cleaned_val
                         config_cust_field_map = config["Misc"]["CUSTOM_FIELD_MAPPER"]
                         if rattr_name in config_cust_field_map.keys():
-                            devicedata[config_cust_field_map[rattr_name]] = cleaned_val
+                            devicedata[self.custom_field_name_slugger(config_cust_field_map[rattr_name])] = cleaned_val
                 if rasset:
                     devicedata["asset_tag"] = rasset
                 devicedata["custom_fields"]["rt_id"] = str(rt_object_id)
-                devicedata["custom_fields"]["Visible label"] = str(rname)
+                devicedata["custom_fields"][self.custom_field_name_slugger("Visible label")] = str(rname)
 
                 if note:
                     note = note.replace("\n", "\n\n")  # markdown. all new lines need two new lines
@@ -3100,11 +3132,15 @@ if __name__ == "__main__":
     logger.addHandler(ch)
 
     # Load lookup map of yaml data
+    if os.environ.get("rt2nb_hardware_map_file_name"):
+        conf_file_name = os.environ.get("rt2nb_hardware_map_file_name")
+    else:
+        conf_file_name = "hardware_map.yaml"
     try:
-        with open("hardware_map.yaml", "r") as stream:
+        with open(conf_file_name, "r") as stream:
             device_type_map_preseed = yaml.safe_load(stream)
     except:
-        with open(os.getcwd() + "/hardware_map.yaml", "r") as stream:
+        with open(os.getcwd() + "/" + conf_file_name, "r") as stream:
             device_type_map_preseed = yaml.safe_load(stream)
 
     py_netbox = pynetbox.api(config["NetBox"]["NETBOX_HOST"], token=config["NetBox"]["NETBOX_TOKEN"])
@@ -3135,7 +3171,7 @@ if __name__ == "__main__":
         racktables.get_ips()
         racktables.get_ips_v6()
     if config["Migrate"]["HARDWARE"] == True:
-        # print("running device types")
+        # logger.debug("running device types")
         # racktables.get_device_types()
         logger.debug("running manage hardware")
         racktables.get_devices()

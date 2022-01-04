@@ -18,18 +18,18 @@ NetBox:
   NETBOX_HOST: http://netbox:8080
 #:===== Data to Migrate:======== #
 Migrate:
-  TAGS: True
+  TAGS: False
   CUSTOM_ATTRIBUTES: True
   INFRA: True
-  VLAN: True
-  SUBNETS: True
-  IPS: True
+  VLAN: False
+  SUBNETS: False
+  IPS: False
   HARDWARE: True
 #:===== Other settings:======== #
 Misc:
-  DEFAULT_DEVICE_ROLE_ID: 1
+  DEFAULT_DEVICE_ROLE_ID: False # Numeral or False
   SKIP_DEVICES_WITHOUT_TEMPLATE: True
-  SKIP_OBJECTS_WITH_TAGS: Decommissioned_gone
+  SKIP_OBJECTS_WITH_TAGS: romance
   CHILD_AS_BUILDING: True  # use RTs sub-location as Device42 building. If False, use it as a Device42 room.
   ROW_AS_ROOM: False  # use RTs row as Device42 room.
   # Note: Rooms are required because racks are mounted to rooms, not to buildings!
@@ -38,8 +38,8 @@ Misc:
   CUSTOM_FIELD_MAPPER: 
     OEM S/N 1: serial
   hardware_data_filter: >-
-    AND Object.has_problems: "no"
+    AND Object.has_problems = "no"
   device_data_filter: >-
-    AND Object.has_problems: "no"
+    AND Object.has_problems = "no"
   device_data_filter_obj_only: >-
-    Object.has_problems: "no"
+    Object.has_problems = "no"
