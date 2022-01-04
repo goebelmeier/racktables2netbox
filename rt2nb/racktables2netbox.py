@@ -1347,7 +1347,6 @@ class DB(object):
         for line in subnets:
             if not self.tag_map:
                 self.create_tag_map()
-            print(line)
             sid, raw_sub, mask, last_ip, name, comment, vlan_domain_id, vlan_id, ipv6net_id = line
             subnet = self.convert_ip_v6(raw_sub)
 
@@ -1371,8 +1370,6 @@ class DB(object):
                     logger.debug("failed to find vlan for subnet {}".format(subnet))
             subs.update({"prefix": "/".join([subnet, str(mask)])})
             ip_calc_net = ipcalc.Network(subs["prefix"])
-            print(ip_calc_net.subnet())
-            print(ip_calc_net.network())
             ip_calc_net2 = ipcalc.Network(str(ip_calc_net.network()) + "/" + str(ip_calc_net.subnet()))
             cleaned_prefix = str(ip_calc_net2.to_compressed()) + "/" + str(ip_calc_net2.subnet())
             subs.update({"prefix": cleaned_prefix})
@@ -1380,7 +1377,6 @@ class DB(object):
             # subs.update({'mask_bits': str(mask)})
             subs.update({"description": name})
             subs.update({"tags": tags})
-            pp.pprint(subs)
             netbox.post_subnet(subs)
 
     def get_tags_for_obj(self, tag_type, object_id):
@@ -1682,7 +1678,6 @@ class DB(object):
             msg = ("Racks", str(racks))
             # logger.debug(msg)
         for rack in racks:
-            pp.pprint(rack)
             netbox_rack = {}
             netbox_rack["name"] = rack["name"]
             logger.debug("attempting to get site {} from netbox dict".format(rack["building"]))
