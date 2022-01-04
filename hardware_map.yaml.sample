@@ -14,10 +14,49 @@ by_key_name:
     yaml_file: custom_device_templates/dell_r610.yml
 
 
+  Avocent SwitchView 1000 8-port:
+    slug: generic_1u_short_device
+    yaml_file: custom_device_templates/generic/generic_1u_short_device.yml
 
   Dell PowerEdge 1950:
     slug: generic_1u_device
-    yaml_file: netbox-devicetypes/generic/generic_1u_device.yml
+    yaml_file: custom_device_templates/generic/generic_1u_device.yml
+  Huawei S5352C-EI: 
+    slug: generic_0u_device
+    yaml_file: custom_device_templates/generic/generic_0u_device.yml
+  HP ProLiant DL145:
+    slug: generic_1u_device
+    yaml_file: custom_device_templates/generic/generic_1u_device.yml
+
+  Sun StorageTek 3511:
+    slug: generic_2u_device
+    yaml_file: custom_device_templates/generic/generic_2u_device.yml 
+  Sun StorageTek 3320:
+    slug: generic_2u_device
+    yaml_file: custom_device_templates/generic/generic_2u_device.yml 
+  Sun StorageTek SL500:
+    slug: generic_8u_device
+    yaml_file: custom_device_templates/generic/generic_8u_device.yml 
+  Sun Fire V490:
+    slug: generic_5u_device
+    yaml_file: custom_device_templates/generic/generic_5u_device.yml 
+  Sun Fire V210:
+    slug: generic_1u_device
+    yaml_file: custom_device_templates/generic/generic_1u_device.yml
+
+  Foundry ServerIron:
+    slug: generic_2u_short_device
+    yaml_file: custom_device_templates/generic/generic_2u_short_device.yml
+  
+  Cisco Catalyst 2912XL:
+    slug: generic_1u_short_device
+    yaml_file: custom_device_templates/generic/generic_1u_short_device.yml
+  Cisco 3640:
+    slug: generic_2u_short_device
+    yaml_file: custom_device_templates/generic/generic_2u_short_device.yml
+  
+
+
   Cisco Catalyst 2960-8TC-L:
     slug: ws-c2960-8tc-l
     yaml_url: https://raw.githubusercontent.com/netbox-community/devicetype-library/master/device-types/Cisco/WS-C2960-8TC-L.yaml
@@ -71,7 +110,7 @@ by_key_name:
     yaml_file: custom_device_templates/generic/generic_4u_short_device.yml
   generic_5u_device:
     slug: generic_5u_device
-    yaml_file: netbox-devicetypes/generic/generic_5u_device.yml
+    yaml_file: custom_device_templates/generic/generic_5u_device.yml
   generic_6u_device:
     slug: generic_6u_device
     yaml_file: custom_device_templates/generic/generic_6u_device.yml
