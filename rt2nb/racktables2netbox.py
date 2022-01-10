@@ -2150,7 +2150,7 @@ class DB(object):
         else:
             # check to see if device_role_id exists in nb. if not. blow up
             roles = {str(item.id): dict(item) for item in py_netbox.dcim.device_roles.all()}
-            if not config["Misc"]["DEFAULT_DEVICE_ROLE_ID"] in roles:
+            if not str(config["Misc"]["DEFAULT_DEVICE_ROLE_ID"]) in roles:
                 logger.error(f"No device-role found in netbox with id: {config['Misc']['DEFAULT_DEVICE_ROLE_ID']}")
                 exit(5)
 
