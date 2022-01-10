@@ -2041,7 +2041,6 @@ class DB(object):
             self.container_map.update({object_id: container_id})
 
     def get_devices(self):
-        pp.pprint("here")
 
         self.get_vmhosts()
         self.get_chassis()
@@ -2495,22 +2494,24 @@ class DB(object):
                         # pp.pprint(ip_ints)
                         netbox.create_device_interfaces(dev_id, ports, ip_ints)
                         # ports = False
-                        # if ports:
-                        #     for item in ports:
-                        #         switchport_data = {
-                        #             "port": item[0],
-                        #             "switch": name,
-                        #             "label": item[1],
-                        #         }
+                        if ports:
+                            for item in ports:
+                                switchport_data = {
+                                    "local_port": item[0],
+                                    "local_device": name,
+                                    "local_device_rt_id": dev_id,
+                                    "local_label": item[1],
+                                }
 
-                        #         get_links = self.get_links(item[3])
-                        #         pp.pprint(get_links)
-                        #         get_links = None
-                        #         if get_links:
-                        #             device_name = self.get_device_by_port(get_links[0])
-                        #             switchport_data.update({"device": device_name})
-                        #             switchport_data.update({"remote_device": device_name})
-                        #             # switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                                get_links = self.get_links(item[3])
+                                pp.pprint("here get_links")
+                                pp.pprint(get_links)
+
+                                if get_links:
+                                    remote_device_name = self.get_device_by_port(get_links[0])
+                                    switchport_data.update({"remote_device": remote_device_name})
+                                    switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                                    pp.pprint(switchport_data)
 
                         #             # netbox.post_switchport(switchport_data)
 
@@ -2778,7 +2779,6 @@ class DB(object):
                     if pdu_id not in rack_mounted:
                         rack_mounted.append(pdu_id)
                         position, height, depth, mount = self.get_hardware_size(pdu_id)
-                        print("got here")
                         if True:
                             # try:
                             rack_data = netbox.get_rack_by_rt_id(pdudata["rack"])
@@ -2999,9 +2999,13 @@ class DB(object):
     @staticmethod
     def get_ports_by_device(ports, device_id):
         device_ports = []
+        ports_found = False
         for port in ports:
             if port[4] == device_id:
-                device_ports.append(port)
+                print(port)
+                ports_found = True
+                if not "KVM" in port[0] and not "AC-" in port[0] and not "RS-232" in port[0]:
+                    device_ports.append(port)
 
         return device_ports
 
@@ -3018,7 +3022,7 @@ class DB(object):
             cur = self.con.cursor()
             q = (
                 """SELECT
-                    name
+                    id,name
                     FROM Object
                     WHERE id = ( SELECT object_id FROM Port WHERE id = %s )"""
                 % port_id
@@ -3028,7 +3032,7 @@ class DB(object):
         cur.close()
         self.con = None
         if data:
-            return data[0]
+            return {"id": data[0], "name": data[1] }
         else:
             return False
 
