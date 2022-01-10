@@ -505,6 +505,7 @@ class NETBOX(object):
                         "1000base-lx": "1000base-x-sfp",
                         "empty sfp-1000": "1000base-x-sfp",
                         "10gbase-lr": "1000base-x-sfp",
+                        "1000base-sx": "1000base-x-sfp",
                         "empty qsfp": "40gbase-x-qsfpp",
                         "virtual port": "virtual",
                         "10gbase-zr-dwdm80-51.72 (itu 32)": "10gbase-x-sfpp",
@@ -1094,6 +1095,22 @@ class NETBOX(object):
                 site_data = {"description": name, "name": name, "slug": slugify.slugify(name), "custom_fields": {"rt_id": str(rt_id)}}
                 print(nb.dcim.sites.create(site_data))
     
+    def create_cable( self, int_1_id, int_2_id ):
+        nb = self.py_netbox
+        data = {
+            "termination_a_type": "dcim.interface",
+            "termination_a_id": int_1_id,
+            "termination_b_type": "dcim.interface",
+            "termination_b_id": int_2_id,
+        }
+        try:
+            created = nb.dcim.cables.create(data)
+            pp.pprint(created)
+        except Exception as e:
+            logger.debug("unable to create cable, usually means a cable already exists...")
+            logger.error(e)
+
+
     def create_cables_between_devices(self, connection_data):
         nb = self.py_netbox
         local_device_obj = nb.dcim.devices.filter(cf_rt_id=connection_data["local_device_rt_id"])
@@ -1101,26 +1118,57 @@ class NETBOX(object):
         if bool(local_device):
             local_device = list(local_device.values())[0]
         # local_device_dict = { str(local_device): dict(local_device) }
-        pp.pprint(local_device)
+        # pp.pprint(local_device)
 
         remote_device_obj = nb.dcim.devices.filter(cf_rt_id=connection_data["remote_device"]["id"])
         remote_device = {str(item): dict(item) for item in remote_device_obj}
-        if bool(local_device):
+        if bool(remote_device):
             remote_device = list(remote_device.values())[0]
         # remote_device = nb.dcim.devices.filter(cf_rt_id=connection_data["remote_device"]["id"])
-        pp.pprint(remote_device)
+        # pp.pprint(remote_device)
         if bool(local_device) and bool(remote_device):
             
             local_device_ints_objs = nb.dcim.interfaces.filter(device_id =local_device['id'])
             local_device_ints = {str(item):item for item in local_device_ints_objs}
-            pp.pprint(local_device_ints)
+            # pp.pprint(local_device_ints)
             remote_device_ints_objs = nb.dcim.interfaces.filter(device_id =remote_device['id'])
             remote_device_ints = {str(item):item for item in remote_device_ints_objs}
-            pp.pprint(remote_device_ints)
+            # pp.pprint(remote_device_ints)
+ 
+            local_port_found = False
+
+            if connection_data['local_port'] in local_device_ints.keys():
+                logger.debug("found local_port in netbox")
+                local_port_found = True
+                local_port = local_device_ints[connection_data['local_port']]
+                # local_port_dict = {str(item): item for item in local_port}
+                
+            else:
+                logger.error(f"did not find local_port({connection_data['local_port']}) in netbox...")
+            remote_port_found = False
+            if connection_data["remote_port"] in remote_device_ints.keys():
+                logger.debug("found remote_port in netbox")
+                remote_port_found = True
+                remote_port = remote_device_ints[connection_data["remote_port"]]
+                # remote_port_dict = {str(item): item for item in remote_port}
+            else:
+                logger.error(f"did not find remote_port({connection_data['remote_port']}) in netbox for device {remote_device['name']}")
+            
+            if local_port_found and remote_port_found:
+                # port may be set to Virtual if it didnt exist in device template when syned over. fix if needed
+                if str(remote_port.type) == "Virtual":
+                    remote_port.update(
+                        {"type": "other"}
+                    )
+                if str(local_port.type) == "Virtual":
+                    local_port.update(
+                        {"type": "other"}
+                    )
+                # the actual meat of the function.... why did it take soo much to get here? definately monday code....
+                self.create_cable(local_port.id, remote_port.id)
 
         else:
             logging.warning("remote device doesnt exist in nb yet. connections will be added when it gets added")
-        exit(5) 
 
 
 
@@ -2105,8 +2153,8 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"SELECT id FROM Object WHERE Object.id = 917 and "
-            # q = q + "Object.id >= 7700 and "
+            q = f"SELECT id FROM Object WHERE "
+            # q = q + "Object.id = 915 and "
             q = q + f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
             idsx = cur.fetchall()
