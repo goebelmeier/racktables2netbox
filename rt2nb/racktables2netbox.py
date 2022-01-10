@@ -1093,6 +1093,36 @@ class NETBOX(object):
                 pp.pprint(f"{name} not in netbox, adding")
                 site_data = {"description": name, "name": name, "slug": slugify.slugify(name), "custom_fields": {"rt_id": str(rt_id)}}
                 print(nb.dcim.sites.create(site_data))
+    
+    def create_cables_between_devices(self, connection_data):
+        nb = self.py_netbox
+        local_device_obj = nb.dcim.devices.filter(cf_rt_id=connection_data["local_device_rt_id"])
+        local_device = {str(item): dict(item) for item in local_device_obj }
+        if bool(local_device):
+            local_device = list(local_device.values())[0]
+        # local_device_dict = { str(local_device): dict(local_device) }
+        pp.pprint(local_device)
+
+        remote_device_obj = nb.dcim.devices.filter(cf_rt_id=connection_data["remote_device"]["id"])
+        remote_device = {str(item): dict(item) for item in remote_device_obj}
+        if bool(local_device):
+            remote_device = list(remote_device.values())[0]
+        # remote_device = nb.dcim.devices.filter(cf_rt_id=connection_data["remote_device"]["id"])
+        pp.pprint(remote_device)
+        if bool(local_device) and bool(remote_device):
+            
+            local_device_ints_objs = nb.dcim.interfaces.filter(device_id =local_device['id'])
+            local_device_ints = {str(item):item for item in local_device_ints_objs}
+            pp.pprint(local_device_ints)
+            remote_device_ints_objs = nb.dcim.interfaces.filter(device_id =remote_device['id'])
+            remote_device_ints = {str(item):item for item in remote_device_ints_objs}
+            pp.pprint(remote_device_ints)
+
+        else:
+            logging.warning("remote device doesnt exist in nb yet. connections will be added when it gets added")
+        exit(5) 
+
+
 
 
 class DB(object):
@@ -2075,7 +2105,7 @@ class DB(object):
         with self.con:
             cur = self.con.cursor()
             # get object IDs
-            q = f"SELECT id FROM Object WHERE "
+            q = f"SELECT id FROM Object WHERE Object.id = 917 and "
             # q = q + "Object.id >= 7700 and "
             q = q + f"""{config["Misc"]["device_data_filter_obj_only"]} """
             cur.execute(q)
@@ -2484,7 +2514,7 @@ class DB(object):
                     netbox.post_device(devicedata, py_netbox)
 
                     # update ports
-                    if dev_type == 8 or dev_type == 4 or dev_type == 445 or dev_type == 1055:
+                    if process_object:
                         # pp.pprint("got here")
                         # print("")
                         ports = self.get_ports_by_device(self.all_ports, dev_id)
@@ -2512,6 +2542,8 @@ class DB(object):
                                     switchport_data.update({"remote_device": remote_device_name})
                                     switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
                                     pp.pprint(switchport_data)
+                                
+                                    netbox.create_cables_between_devices(switchport_data)
 
                         #             # netbox.post_switchport(switchport_data)
 

@@ -19,11 +19,11 @@ NetBox:
 #:===== Data to Migrate:======== #
 Migrate:
   TAGS: False
-  CUSTOM_ATTRIBUTES: True
-  INFRA: True
-  VLAN: True
-  SUBNETS: True
-  IPS: True
+  CUSTOM_ATTRIBUTES: False
+  INFRA: False
+  VLAN: False
+  SUBNETS: False
+  IPS: False
   HARDWARE: True
 #:===== Other settings:======== #
 Misc:
