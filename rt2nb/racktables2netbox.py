@@ -995,6 +995,12 @@ class NETBOX(object):
             try:
                 # print(custom_field["name"])
                 # print(all_custom_fields[custom_field["name"]])
+                if custom_field["label"] in all_custom_fields.keys():
+                    dt = all_custom_fields[custom_field["label"]]
+                    if not str(dt.name) == custom_field["name"]:
+                        logger.debug(f"name is not correctly set on custom field {custom_field['label']}, updating, this may take some time")
+                        dt.update({"name": custom_field["name"], "label": custom_field["label"] })
+                        all_custom_fields = {str(item): item for item in nb.extras.custom_fields.all()}
                 dt = all_custom_fields[custom_field["name"]]
                 logger.debug(f"Custom Field Exists: {dt.name} - " + f"{dt.type}")
             except KeyError:
@@ -2593,41 +2599,6 @@ class DB(object):
                                 
                                     netbox.create_cables_between_devices(switchport_data)
 
-                        #             # netbox.post_switchport(switchport_data)
-
-                        #             # reverse connection
-                        #             device_name = self.get_device_by_port(get_links[0])
-                        #             switchport_data = {
-                        #                 "port": self.get_port_by_id(self.all_ports, get_links[0]),
-                        #                 "switch": device_name,
-                        #             }
-
-                        #             switchport_data.update({"device": name})
-                        #             switchport_data.update({"remote_device": name})
-                        #             switchport_data.update({"remote_port": item[0]})
-
-                        #             # netbox.post_switchport(switchport_data)
-                        #         # else:
-                        #         # netbox.post_switchport(switchport_data)
-
-                    # # if there is a device, we can try to mount it to the rack
-                    # if dev_type != 1504 and d42_rack_id and floor:  # rack_id is D42 rack id
-                    #     device2rack.update({"device": name})
-                    #     if hardware:
-                    #         device2rack.update({"hw_model": hardware[:48]})
-                    #     device2rack.update({"rack_id": d42_rack_id})
-                    #     device2rack.update({"start_at": floor})
-                    #     logger.debug(device2rack)
-                    #     # netbox.post_device2rack(device2rack)
-                    # else:
-                    #     if dev_type != 1504 and d42_rack_id is not None:
-                    #         msg = (
-                    #             '\n-----------------------------------------------------------------------\
-                    #         \n[!] INFO: Cannot mount device "%s" (RT id = %d) to the rack.\
-                    #         \n\tFloor returned from "get_hardware_size" function was: %s'
-                    #             % (name, dev_id, str(floor))
-                    #         )
-                    #         logger.info(msg)
                 else:
                     msg = (
                         "\n-----------------------------------------------------------------------\
