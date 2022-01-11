@@ -467,7 +467,7 @@ class NETBOX(object):
                 response = py_netbox.dcim.interfaces.create(
                     device=nb_device.id,
                     name=dev_int,
-                    type="virtual",
+                    type="other",
                     enabled=True,
                     description="rt_import",
                 )
@@ -490,7 +490,7 @@ class NETBOX(object):
         # pp.pprint(dev_ints)
         for dev_int in dev_ints:
 
-            if not "KVM" in dev_int[2] and not "AC-" in dev_int[2] and not "RS-232" in dev_int[2]:
+            if not "AC-" in dev_int[2] and not "RS-232" in dev_int[2]:
                 # print(dev_int)
                 if "empty" in dev_int[2]:
                     connected = False
@@ -500,6 +500,7 @@ class NETBOX(object):
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
                     map_list = {
+                        "kvm": "other",
                         "10gbase-sr": "10gbase-x-sfpp",
                         "empty sfp+": "10gbase-x-sfpp",
                         "1000base-lx": "1000base-x-sfp",
@@ -508,14 +509,14 @@ class NETBOX(object):
                         "1000base-sx": "1000base-x-sfp",
                         "empty qsfp": "40gbase-x-qsfpp",
                         "virtual port": "virtual",
-                        "10gbase-zr-dwdm80-51.72 (itu 32)": "10gbase-x-sfpp",
+                        "10gbase-zr-": "10gbase-x-sfpp",
                         "empty xfp": "1000base-x-sfp",
                         "empty sfp28": "25gbase-x-sfp28",
                         "empty qsfp": "100gbase-x-qsfp28",
                         "100gbase-sr4": "100gbase-x-qsfp28",
                         "100gbase-lr4": "100gbase-x-qsfp28",
                     }
-                    int_type = dev_int[2].lower()
+                    int_type = dev_int[2].lower().split("dwdm80")[0].split("(")[0].strip()
                     if int_type in map_list.keys():
                         int_type = map_list[int_type]
 
@@ -3055,7 +3056,7 @@ class DB(object):
             if port[4] == device_id:
                 print(port)
                 ports_found = True
-                if not "KVM" in port[0] and not "AC-" in port[0] and not "RS-232" in port[0]:
+                if not "AC-" in port[0] and not "RS-232" in port[0]:
                     device_ports.append(port)
 
         return device_ports
