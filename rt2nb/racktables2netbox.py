@@ -1533,9 +1533,9 @@ class DB(object):
                 attrib_val = attrib_data[5]
             elif attrib_data[1] == "string":
                 attrib_val = attrib_data[2]
-            elif attrib_data == "date":
+            elif attrib_data[1] == "date":
                 attrib_val = attrib_data[3]
-            elif attrib_data == "float":
+            elif attrib_data[1] == "float":
                 attrib_val = attrib_data[4]
 
             if attrib_data[1] == "date":
@@ -3234,7 +3234,9 @@ if __name__ == "__main__":
         # racktables.get_device_types()
         logger.debug("running manage hardware")
         racktables.get_devices()
+    if config["Migrate"]["PDUS"] == True:
         racktables.get_pdus()
+    if config["Migrate"]["PATCHPANELS"] == True:
         racktables.get_patch_panels()
     # racktables.get_container_map()
     # racktables.get_chassis()

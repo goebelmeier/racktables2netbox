@@ -24,7 +24,9 @@ Migrate:
   VLAN: False
   SUBNETS: False
   IPS: False
-  HARDWARE: True
+  HARDWARE: False
+  PATCHPANELS: False
+  PDUS: True
 #:===== Other settings:======== #
 Misc:
   DEFAULT_DEVICE_ROLE_ID: False # Numeral or False

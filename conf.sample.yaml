@@ -24,6 +24,8 @@ Migrate:
   SUBNETS: True
   IPS: True
   HARDWARE: True
+  PATCHPANELS: True
+  PDUS: True
 #:===== Other settings:======== #
 Misc:
   DEFAULT_DEVICE_ROLE_ID: 1 # Numeral or False
