@@ -515,6 +515,7 @@ class NETBOX(object):
                         "empty qsfp": "100gbase-x-qsfp28",
                         "100gbase-sr4": "100gbase-x-qsfp28",
                         "100gbase-lr4": "100gbase-x-qsfp28",
+                        "empty x2": "other",
                     }
                     int_type = dev_int[2].lower().split("dwdm80")[0].split("(")[0].strip()
                     if int_type in map_list.keys():
@@ -1537,12 +1538,12 @@ class DB(object):
                 attrib_val = attrib_data[3]
             elif attrib_data[1] == "float":
                 attrib_val = attrib_data[4]
-
+            attrib_name = self.custom_field_name_slugger(attrib_data[0])
             if attrib_data[1] == "date":
                 datetime_time = datetime.datetime.fromtimestamp(int(attrib_val))
-                attribs[attrib_data[0]] = datetime_time.strftime("%Y-%m-%d")
+                attribs[attrib_name] = datetime_time.strftime("%Y-%m-%d")
             else:
-                attribs[attrib_data[0]] = str(attrib_val)
+                attribs[attrib_name] = str(attrib_val)
         return attribs
 
     def get_tags(self):
@@ -2991,7 +2992,7 @@ class DB(object):
             # attribs["number_of_ports"] = item[2]
             # attribs["number_of_ports_in_row"] = item[2]
             if item[3]:
-                attribs["Visible label"] = item[3]
+                attribs[self.custom_field_name_slugger("Visible label")] = item[3]
             attribs["rt_id"] = str(item[0])
             payload = {
                 "name": item[1],
@@ -3018,8 +3019,32 @@ class DB(object):
 
             # netbox.post_patch_panel(payload)
             netbox.post_device(payload)
-            pp.pprint(payload)
-            # exit(3)
+
+
+            ip_ints = self.get_devices_ips_ints(item[0])
+            # pp.pprint(ip_ints)
+            netbox.create_device_interfaces(item[0], ports, ip_ints)
+            # ports = False
+            if ports:
+                for item in ports:
+                    switchport_data = {
+                        "local_port": item[0],
+                        "local_device": payload['name'],
+                        "local_device_rt_id": item[0],
+                        "local_label": item[1],
+                    }
+
+                    get_links = self.get_links(item[3])
+                    pp.pprint("here get_links")
+                    pp.pprint(get_links)
+
+                    if get_links:
+                        remote_device_name = self.get_device_by_port(get_links[0])
+                        switchport_data.update({"remote_device": remote_device_name})
+                        switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                        pp.pprint(switchport_data)
+                    
+                        netbox.create_cables_between_devices(switchport_data)
 
             print("")
 
