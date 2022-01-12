@@ -26,7 +26,8 @@ Migrate:
   IPS: False
   HARDWARE: False
   PATCHPANELS: False
-  PDUS: True
+  PDUS: False
+  VMS: True
 #:===== Other settings:======== #
 Misc:
   DEFAULT_DEVICE_ROLE_ID: False # Numeral or False

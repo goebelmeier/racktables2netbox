@@ -1001,7 +1001,7 @@ class NETBOX(object):
                     dt = all_custom_fields[custom_field["label"]]
                     if not str(dt.name) == custom_field["name"]:
                         logger.debug(f"name is not correctly set on custom field {custom_field['label']}, updating, this may take some time")
-                        dt.update({"name": custom_field["name"], "label": custom_field["label"] })
+                        dt.update({"name": custom_field["name"], "label": custom_field["label"]})
                         all_custom_fields = {str(item): item for item in nb.extras.custom_fields.all()}
                 dt = all_custom_fields[custom_field["name"]]
                 logger.debug(f"Custom Field Exists: {dt.name} - " + f"{dt.type}")
@@ -1102,8 +1102,8 @@ class NETBOX(object):
                 pp.pprint(f"{name} not in netbox, adding")
                 site_data = {"description": name, "name": name, "slug": slugify.slugify(name), "custom_fields": {"rt_id": str(rt_id)}}
                 print(nb.dcim.sites.create(site_data))
-    
-    def create_cable( self, int_1_id, int_2_id ):
+
+    def create_cable(self, int_1_id, int_2_id):
         nb = self.py_netbox
         data = {
             "termination_a_type": "dcim.interface",
@@ -1118,11 +1118,10 @@ class NETBOX(object):
             logger.debug("unable to create cable, usually means a cable already exists...")
             logger.error(e)
 
-
     def create_cables_between_devices(self, connection_data):
         nb = self.py_netbox
         local_device_obj = nb.dcim.devices.filter(cf_rt_id=connection_data["local_device_rt_id"])
-        local_device = {str(item): dict(item) for item in local_device_obj }
+        local_device = {str(item): dict(item) for item in local_device_obj}
         if bool(local_device):
             local_device = list(local_device.values())[0]
         # local_device_dict = { str(local_device): dict(local_device) }
@@ -1135,22 +1134,22 @@ class NETBOX(object):
         # remote_device = nb.dcim.devices.filter(cf_rt_id=connection_data["remote_device"]["id"])
         # pp.pprint(remote_device)
         if bool(local_device) and bool(remote_device):
-            
-            local_device_ints_objs = nb.dcim.interfaces.filter(device_id =local_device['id'])
-            local_device_ints = {str(item):item for item in local_device_ints_objs}
+
+            local_device_ints_objs = nb.dcim.interfaces.filter(device_id=local_device["id"])
+            local_device_ints = {str(item): item for item in local_device_ints_objs}
             # pp.pprint(local_device_ints)
-            remote_device_ints_objs = nb.dcim.interfaces.filter(device_id =remote_device['id'])
-            remote_device_ints = {str(item):item for item in remote_device_ints_objs}
+            remote_device_ints_objs = nb.dcim.interfaces.filter(device_id=remote_device["id"])
+            remote_device_ints = {str(item): item for item in remote_device_ints_objs}
             # pp.pprint(remote_device_ints)
- 
+
             local_port_found = False
 
-            if connection_data['local_port'] in local_device_ints.keys():
+            if connection_data["local_port"] in local_device_ints.keys():
                 logger.debug("found local_port in netbox")
                 local_port_found = True
-                local_port = local_device_ints[connection_data['local_port']]
+                local_port = local_device_ints[connection_data["local_port"]]
                 # local_port_dict = {str(item): item for item in local_port}
-                
+
             else:
                 logger.error(f"did not find local_port({connection_data['local_port']}) in netbox...")
             remote_port_found = False
@@ -1161,24 +1160,18 @@ class NETBOX(object):
                 # remote_port_dict = {str(item): item for item in remote_port}
             else:
                 logger.error(f"did not find remote_port({connection_data['remote_port']}) in netbox for device {remote_device['name']}")
-            
+
             if local_port_found and remote_port_found:
                 # port may be set to Virtual if it didnt exist in device template when syned over. fix if needed
                 if str(remote_port.type) == "Virtual":
-                    remote_port.update(
-                        {"type": "other"}
-                    )
+                    remote_port.update({"type": "other"})
                 if str(local_port.type) == "Virtual":
-                    local_port.update(
-                        {"type": "other"}
-                    )
+                    local_port.update({"type": "other"})
                 # the actual meat of the function.... why did it take soo much to get here? definately monday code....
                 self.create_cable(local_port.id, remote_port.id)
 
         else:
-            logging.warning("remote device doesnt exist in nb yet. connections will be added when it gets added")
-
-
+            logger.warning("remote device doesnt exist in nb yet. connections will be added when it gets added")
 
 
 class DB(object):
@@ -1501,7 +1494,7 @@ class DB(object):
             self.create_tag_map()
         return tags
 
-    def get_attribs_for_obj(self, object_id):
+    def get_attribs_for_obj(self, object_id, remove_links=False):
         attribs = {}
         if not self.con:
             self.connect()
@@ -1522,7 +1515,7 @@ class DB(object):
 
             resp = cur.fetchall()
             if config["Log"]["DEBUG"]:
-                msg = ("attribs_db_resp", str(resp))
+                msg = "attribs_db_resp: " + str(resp)
                 logger.debug(msg)
             cur.close()
             self.con = None
@@ -1543,6 +1536,8 @@ class DB(object):
                 datetime_time = datetime.datetime.fromtimestamp(int(attrib_val))
                 attribs[attrib_name] = datetime_time.strftime("%Y-%m-%d")
             else:
+                if remove_links:
+                    attrib_val = self.remove_links(attrib_val)
                 attribs[attrib_name] = str(attrib_val)
         return attribs
 
@@ -1586,6 +1581,7 @@ class DB(object):
             attrib_type, attrib_name = line
             attributes.append({"name": attrib_name, "type": attrib_type})
         attributes.append({"name": "rt_id", "type": "text", "filter_logic": "exact"})  # custom field for racktables source objid
+        attributes.append({"name": "rt_id_parent", "type": "text", "filter_logic": "exact"})  # used for child devices (vms) to link to parent (server)
         attributes.append({"name": "Visible label", "type": "text"})
         attributes.append({"name": "SW type", "type": "text"})
         attributes.append({"name": "Operating System", "type": "text"})
@@ -2596,9 +2592,9 @@ class DB(object):
                                 if get_links:
                                     remote_device_name = self.get_device_by_port(get_links[0])
                                     switchport_data.update({"remote_device": remote_device_name})
-                                    switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                                    switchport_data.update({"remote_port": self.get_port_by_id(self.all_ports, get_links[0])})
                                     pp.pprint(switchport_data)
-                                
+
                                     netbox.create_cables_between_devices(switchport_data)
 
                 else:
@@ -2854,7 +2850,7 @@ class DB(object):
                                         rdata["asset_tag"] = pdudata["asset_tag"]
                                 # pp.pprint(rdata)
                                 logger.info(f"adding 0U pdu: {rdata['name']}")
-                                
+
                                 logger.debug(rdata)
                                 netbox.post_device(rdata)
                                 # netbox.post_pdu_to_rack(rdata, d42_rack_id)
@@ -3020,7 +3016,6 @@ class DB(object):
             # netbox.post_patch_panel(payload)
             netbox.post_device(payload)
 
-
             ip_ints = self.get_devices_ips_ints(item[0])
             # pp.pprint(ip_ints)
             netbox.create_device_interfaces(item[0], ports, ip_ints)
@@ -3029,7 +3024,7 @@ class DB(object):
                 for item in ports:
                     switchport_data = {
                         "local_port": item[0],
-                        "local_device": payload['name'],
+                        "local_device": payload["name"],
                         "local_device_rt_id": item[0],
                         "local_label": item[1],
                     }
@@ -3041,9 +3036,9 @@ class DB(object):
                     if get_links:
                         remote_device_name = self.get_device_by_port(get_links[0])
                         switchport_data.update({"remote_device": remote_device_name})
-                        switchport_data.update({'remote_port': self.get_port_by_id(self.all_ports, get_links[0])})
+                        switchport_data.update({"remote_port": self.get_port_by_id(self.all_ports, get_links[0])})
                         pp.pprint(switchport_data)
-                    
+
                         netbox.create_cables_between_devices(switchport_data)
 
             print("")
@@ -3109,7 +3104,7 @@ class DB(object):
         cur.close()
         self.con = None
         if data:
-            return {"id": data[0], "name": data[1] }
+            return {"id": data[0], "name": data[1]}
         else:
             return False
 
@@ -3173,6 +3168,37 @@ class DB(object):
         self.con = None
         if data:
             return data[0]
+
+    def get_vms(self):
+        if not bool(self.container_map):
+            self.get_container_map()
+        if not self.con:
+            self.connect()
+        with self.con:
+            cur = self.con.cursor()
+            q = f"SELECT * FROM Object "
+            q = q + "WHERE Object.objtype_id in (1504) "
+            q = q + " and Object.id = 7975"
+            cur.execute(q)
+            data = cur.fetchall()
+            cur.close()
+        self.con = None
+
+        for vm_data_tupple in data:
+            id, name, label, objtypeid, asset_no, has_problems, comment = vm_data_tupple
+            vm_data = {}
+            vm_data["id"] = id
+            vm_data["name"] = name
+            vm_data["asset_tag"] = asset_no
+            vm_data["comment"] = comment
+            vm_data["attribs"] = self.get_attribs_for_obj(vm_data["id"])
+            vm_data["attribs"]["Visible Label"] = label
+
+            # if id in self.container_map.keys():
+            vm_data["rt_id_parent"] = self.container_map[id]
+
+            pp.pprint(vm_data)
+            pp.pprint("")
 
 
 if __name__ == "__main__":
@@ -3263,12 +3289,8 @@ if __name__ == "__main__":
         racktables.get_pdus()
     if config["Migrate"]["PATCHPANELS"] == True:
         racktables.get_patch_panels()
-    # racktables.get_container_map()
-    # racktables.get_chassis()
-    # racktables.get_vmhosts()
-    # racktables.get_device_to_ip()
-    # racktables.get_patch_panels()
-    # racktables.get_devices()
+    if config["Migrate"]["VMS"] == True:
+        racktables.get_vms()
 
     migrator = Migrator()
 
