@@ -1172,6 +1172,54 @@ class NETBOX(object):
 
         else:
             logger.warning("remote device doesnt exist in nb yet. connections will be added when it gets added")
+    def manage_vm(self, vm_data):
+        nb = self.py_netbox
+        rt_id = vm_data['custom_fields']["rt_id"]
+        vm_data = self.get_vm_cluster_from_device(vm_data)
+        pp.pprint(vm_data)
+        device_check = nb.virtualization.virtual_machines.get(cf_rt_id=rt_id)
+        if device_check:
+            logger.debug("found existing vm in netbox, will update")
+            device_check.update(vm_data)
+        else:
+            logger.debug("did not find an existing vm in nb, will add!")
+            new_device = nb.virtualization.virtual_machines.create(vm_data)
+    
+    def get_vm_cluster_from_device(self, vm_data):
+        nb = self.py_netbox
+        vm_data['cluster'] = str(config['Misc']['DEFAULT_VM_CLUSTER_ID'])
+        if "rt_id_parent" in vm_data["custom_fields"].keys():
+            
+            cluster = nb.virtualization.clusters.get(cf_rt_id=vm_data["custom_fields"]['rt_id_parent'])
+            if cluster:
+                logger.debug(f"cluster {cluster.name} found in nb")
+                vm_data['cluster'] = cluster.id
+            else:
+                parent_device = nb.dcim.devices.get(cf_rt_id=vm_data['custom_fields']["rt_id_parent"])
+                if parent_device: 
+                    logger.debug(f"parent {parent_device.name} found in nb, attempting to create matching cluster")
+                    cluster_type = nb.virtualization.cluster_types.get(name="rt_import")
+                    if not cluster_type: 
+                        cluster_type = nb.virtualization.cluster_types.create({
+                            "name": "rt_import",
+                            "slug": "rt_import"
+                        })
+                        if not cluster_type:
+                            logger.debug("something went wrong. defaulting clusterid to conf")
+                            return vm_data
+                    cluster = nb.virtualization.clusters.create({
+                        "name": parent_device.name,
+                        "type": cluster_type.id,
+                        "custom_fields": { "rt_id": vm_data['custom_fields']["rt_id_parent"] }
+                     })
+                    if cluster:
+                        logger.debug(f"cluster {cluster.name} created")
+                        parent_device.update({"cluster":cluster.id})
+                        vm_data['cluster'] = cluster.id
+                
+        return vm_data
+
+
 
 
 class DB(object):
@@ -3169,6 +3217,31 @@ class DB(object):
         if data:
             return data[0]
 
+    def get_tags_of_obj_false_if_skip(self, obj_id):
+        if not self.tag_map:
+            self.create_tag_map()
+        rt_tags = self.get_tags_for_obj("object", int(obj_id))
+        tags = []
+        for tag in rt_tags:
+            try:
+                # print(tag)
+                tags.append(self.tag_map[tag]["id"])
+            except:
+                logger.debug("failed to find tag {} in lookup map".format(tag))
+
+        bad_tags = []
+        bad_tag = False
+        for tag_check in config["Misc"]["SKIP_OBJECTS_WITH_TAGS"].strip().split(","):
+            logger.debug(f"checking for tag '{tag_check}'")
+            if self.tag_map[tag_check]["id"] in tags:
+                logger.debug(f"tag matched by id")
+                bad_tag = True
+                bad_tags.append(tag_check)
+        if bad_tag:
+            logger.info(f"object rt_id:{obj_id} as it has tags: {str(bad_tags)}")
+            return False, tags
+        else:
+            return True, tags
     def get_vms(self):
         if not bool(self.container_map):
             self.get_container_map()
@@ -3178,27 +3251,40 @@ class DB(object):
             cur = self.con.cursor()
             q = f"SELECT * FROM Object "
             q = q + "WHERE Object.objtype_id in (1504) "
-            q = q + " and Object.id = 7975"
+            # q = q + " limit 20"
             cur.execute(q)
             data = cur.fetchall()
             cur.close()
         self.con = None
 
         for vm_data_tupple in data:
-            id, name, label, objtypeid, asset_no, has_problems, comment = vm_data_tupple
             vm_data = {}
-            vm_data["id"] = id
+            id, name, label, objtypeid, asset_no, has_problems, comment = vm_data_tupple
+            logger.debug(f"start of vm: {id} {name}")
+           
+            # vm_data["id"] = id
             vm_data["name"] = name
             vm_data["asset_tag"] = asset_no
-            vm_data["comment"] = comment
-            vm_data["attribs"] = self.get_attribs_for_obj(vm_data["id"])
-            vm_data["attribs"]["Visible Label"] = label
+            if comment:
+                vm_data["comments"] = comment
+            vm_data["custom_fields"] = self.get_attribs_for_obj(id)
+            vm_data["custom_fields"][self.custom_field_name_slugger("Visible Label")] = label
+            vm_data["custom_fields"]["rt_id"] = str(id)
+
+            tag_resp = self.get_tags_of_obj_false_if_skip(id)
+            if tag_resp[0]:
+                vm_data['tags'] = tag_resp[1]
+            else:
+                logger.debug(f"end of vm: {name} due to skipped tags")
+                continue
 
             # if id in self.container_map.keys():
-            vm_data["rt_id_parent"] = self.container_map[id]
+            if id in self.container_map.keys():
+                vm_data["custom_fields"]["rt_id_parent"] = str(self.container_map[id])
 
-            pp.pprint(vm_data)
-            pp.pprint("")
+            logger.debug(vm_data)
+            netbox.manage_vm(vm_data)
+            logger.debug(f"end of vm: {id} {name}")
 
 
 if __name__ == "__main__":
