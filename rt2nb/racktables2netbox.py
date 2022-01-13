@@ -457,24 +457,50 @@ class NETBOX(object):
         logger.debug("sending updates (if any) to nb")
         device.update(data)
 
-    def create_device_interfaces(self, dev_id, dev_ints, ip_ints):
+    def create_device_interfaces(self, dev_id, dev_ints, ip_ints, force_int_type = False,int_type=None):
         nb_device = py_netbox.dcim.devices.get(cf_rt_id=dev_id)
-        nb_dev_ints = {str(item): item for item in self.py_netbox.dcim.interfaces.filter(device_id=int(nb_device.id))}
+        dev_type = "device"
+        if not nb_device:
+            logger.debug("did not find a device with that rt_id, will check for a vm now")
+            nb_device = py_netbox.virtualization.virtual_machines.get(cf_rt_id=dev_id)
+            
+        if not nb_device:
+            logger.error("did not find any device or with that rt_id")
+            return False
+        else:
+            logger.debug("found vm")
+            dev_type = "vm"
+
+        if dev_type == "device":
+            nb_dev_ints = {str(item): item for item in self.py_netbox.dcim.interfaces.filter(device_id=int(nb_device.id))}
+        elif dev_type == "vm":
+            nb_dev_ints = {str(item): item for item in self.py_netbox.virtualization.interfaces.filter(virtual_machine_id=int(nb_device.id))}
         # pp.pprint(nb_dev_ints)
+        if not int_type:
+            int_type = "other"
         for dev_int in ip_ints:
+            description = f"{dev_int[2]} rt_import"
+            pp.pprint(nb_dev_ints)
             if not dev_int in nb_dev_ints.keys():
                 print(f"{dev_int} not in nb_dev_ints, adding")
-                response = py_netbox.dcim.interfaces.create(
-                    device=nb_device.id,
-                    name=dev_int,
-                    type="other",
-                    enabled=True,
-                    description="rt_import",
-                )
+                dev_data = {
+                    # "device":nb_device.id,
+                    "name":dev_int,
+                    "type":int_type,
+                    "enabled":True,
+                    "description":description,
+                }
+                print(dev_type)
+                if dev_type == "device":
+                    dev_data['device'] = nb_device.id
+                    response = py_netbox.dcim.interfaces.create(dev_data)
+                elif dev_type == "vm":
+                    dev_data['virtual_machine'] = nb_device.id
+                    response = py_netbox.virtualization.interfaces.create(dev_data)
                 nb_dev_ints[dev_int] = response
             else:
-                if not nb_dev_ints[dev_int].description == "rt_import":
-                    nb_dev_ints[dev_int].update({"description": "rt_import"})
+                if not nb_dev_ints[dev_int].description == description:
+                    nb_dev_ints[dev_int].update({"description": description})
                 # print(response)
             for ip in ip_ints[dev_int]:
                 print(ip)
@@ -487,7 +513,6 @@ class NETBOX(object):
                     print(nb_ip.update(ip_update))
                 else:
                     print("could not find ip {ip} in nb")
-        # pp.pprint(dev_ints)
         for dev_int in dev_ints:
 
             if not "AC-" in dev_int[2] and not "RS-232" in dev_int[2]:
@@ -499,27 +524,28 @@ class NETBOX(object):
                 description = f"{dev_int[2]} rt_import"
                 if not dev_int[0] in nb_dev_ints.keys():
                     print(f"{dev_int[0]} not in nb_dev_ints, adding")
-                    map_list = {
-                        "kvm": "other",
-                        "10gbase-sr": "10gbase-x-sfpp",
-                        "empty sfp+": "10gbase-x-sfpp",
-                        "1000base-lx": "1000base-x-sfp",
-                        "empty sfp-1000": "1000base-x-sfp",
-                        "10gbase-lr": "1000base-x-sfp",
-                        "1000base-sx": "1000base-x-sfp",
-                        "empty qsfp": "40gbase-x-qsfpp",
-                        "virtual port": "virtual",
-                        "10gbase-zr-": "10gbase-x-sfpp",
-                        "empty xfp": "1000base-x-sfp",
-                        "empty sfp28": "25gbase-x-sfp28",
-                        "empty qsfp": "100gbase-x-qsfp28",
-                        "100gbase-sr4": "100gbase-x-qsfp28",
-                        "100gbase-lr4": "100gbase-x-qsfp28",
-                        "empty x2": "other",
-                    }
-                    int_type = dev_int[2].lower().split("dwdm80")[0].split("(")[0].strip()
-                    if int_type in map_list.keys():
-                        int_type = map_list[int_type]
+                    if not force_int_type:
+                        map_list = {
+                            "kvm": "other",
+                            "10gbase-sr": "10gbase-x-sfpp",
+                            "empty sfp+": "10gbase-x-sfpp",
+                            "1000base-lx": "1000base-x-sfp",
+                            "empty sfp-1000": "1000base-x-sfp",
+                            "10gbase-lr": "1000base-x-sfp",
+                            "1000base-sx": "1000base-x-sfp",
+                            "empty qsfp": "40gbase-x-qsfpp",
+                            "virtual port": "virtual",
+                            "10gbase-zr-": "10gbase-x-sfpp",
+                            "empty xfp": "1000base-x-sfp",
+                            "empty sfp28": "25gbase-x-sfp28",
+                            "empty qsfp": "100gbase-x-qsfp28",
+                            "100gbase-sr4": "100gbase-x-qsfp28",
+                            "100gbase-lr4": "100gbase-x-qsfp28",
+                            "empty x2": "other",
+                        }
+                        int_type = dev_int[2].lower().split("dwdm80")[0].split("(")[0].strip()
+                        if int_type in map_list.keys():
+                            int_type = map_list[int_type]
 
                     response = py_netbox.dcim.interfaces.create(
                         device=nb_device.id,
@@ -3115,6 +3141,29 @@ class DB(object):
             return data
         else:
             return False
+    
+    # to remove duplication in get pdus devices patchpanels
+    def manage_interfaces_obj(self, obj_type, obj_id, obj_name):
+        ports = self.get_ports_by_device(self.all_ports, obj_id)
+        for item in ports:
+            switchport_data = {
+                "local_port": item[0],
+                "local_device": obj_name,
+                "local_device_rt_id": item[0],
+                "local_label": item[1],
+            }
+
+            get_links = self.get_links(item[3])
+            pp.pprint("here get_links")
+            pp.pprint(get_links)
+
+            if get_links:
+                remote_device_name = self.get_device_by_port(get_links[0])
+                switchport_data.update({"remote_device": remote_device_name})
+                switchport_data.update({"remote_port": self.get_port_by_id(self.all_ports, get_links[0])})
+                pp.pprint(switchport_data)
+
+                netbox.create_cables_between_devices(switchport_data)
 
     @staticmethod
     def get_ports_by_device(ports, device_id):
@@ -3243,6 +3292,8 @@ class DB(object):
         else:
             return True, tags
     def get_vms(self):
+        if not self.all_ports:
+            self.get_ports()
         if not bool(self.container_map):
             self.get_container_map()
         if not self.con:
@@ -3251,6 +3302,7 @@ class DB(object):
             cur = self.con.cursor()
             q = f"SELECT * FROM Object "
             q = q + "WHERE Object.objtype_id in (1504) "
+            q = q + " and Object.id = 7975 "
             # q = q + " limit 20"
             cur.execute(q)
             data = cur.fetchall()
@@ -3284,6 +3336,11 @@ class DB(object):
 
             logger.debug(vm_data)
             netbox.manage_vm(vm_data)
+            ports = self.get_ports_by_device(self.all_ports, id)
+
+            ip_ints = self.get_devices_ips_ints(id)
+            # pp.pprint(ip_ints)
+            netbox.create_device_interfaces(id, ports, ip_ints, True, "virtual")
             logger.debug(f"end of vm: {id} {name}")
 
 
