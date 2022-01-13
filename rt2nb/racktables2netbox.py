@@ -3302,7 +3302,7 @@ class DB(object):
             cur = self.con.cursor()
             q = f"SELECT * FROM Object "
             q = q + "WHERE Object.objtype_id in (1504) "
-            q = q + " and Object.id = 7975 "
+            # q = q + " and Object.id = 7975 "
             # q = q + " limit 20"
             cur.execute(q)
             data = cur.fetchall()
