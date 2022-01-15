@@ -510,6 +510,8 @@ class NETBOX(object):
                         "assigned_object_type": "dcim.interface",
                         "assigned_object_id": nb_dev_ints[dev_int].id,
                     }
+                    if dev_type == "vm":
+                        ip_update['assigned_object_type'] = "virtualization.vminterface"
                     print(nb_ip.update(ip_update))
                 else:
                     print("could not find ip {ip} in nb")
@@ -546,14 +548,18 @@ class NETBOX(object):
                         int_type = dev_int[2].lower().split("dwdm80")[0].split("(")[0].strip()
                         if int_type in map_list.keys():
                             int_type = map_list[int_type]
-
-                    response = py_netbox.dcim.interfaces.create(
-                        device=nb_device.id,
-                        name=dev_int[0],
-                        type=int_type,
-                        enabled=connected,
-                        description=description,
-                    )
+                    int_data = {
+                            "name":dev_int[0],
+                            "type":int_type,
+                            "enabled":connected,
+                            "description":description
+                        }
+                    if dev_type == "device":
+                        int_data['device'] = device=nb_device.id
+                        response = py_netbox.dcim.interfaces.create( int_data )
+                    elif dev_type == "vm":
+                        int_data['virtual_machine'] = nb_device.id
+                        response = py_netbox.virtualization.interfaces.create( int_data )
                     nb_dev_ints[dev_int[0]] = response
                 else:
                     if not nb_dev_ints[dev_int[0]].description == description:
